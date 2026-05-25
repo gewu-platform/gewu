@@ -20,10 +20,10 @@ public class LangChain4jLearningApplication {
     public static void main(String[] args) {
         SpringApplication.run(LangChain4jLearningApplication.class, args);
         System.out.println("""
-            ╔══════════════════════════════════════════════════╗
-            ║   LangChain4j Learning - 学习项目已启动          ║
-            ║   Day 1: 同步/流式调用                           ║
-            ╚══════════════════════════════════════════════════╝
+            ╔═════════════════════════════════════════════════╗
+            ║   LangChain4j Learning - 学习项目已启动            
+            ║   Day 1: 同步/流式调用                            
+            ╚═════════════════════════════════════════════════╝
             """);
     }
 }

@@ -1,13 +1,13 @@
 package com.example.lc4j.service;
 
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
+import com.example.lc4j.config.LangChain4jConfig;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -20,17 +20,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1. 如何封装 LangChain4j 调用到 Service 层
  * 2. 如何管理多个 AI Service 实例
  * 3. 如何在 Service 中使用 Chat Memory
- * 
- * 对比 Spring AI 的 Service 写法：
- * - Spring AI：@Autowired ChatModel + 手动构建 Prompt
- * - LangChain4j：直接用 AiServices 生成代理，更简洁
+ * 4. 动态获取当前激活的 ChatModel（支持切换模型）
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AiServiceLayer {
 
-    @Autowired
-    private ChatModel chatModel;
+    private final LangChain4jConfig modelConfig;
 
     // 定义 AI Service 接口
     interface GeneralAssistant {
@@ -56,31 +53,21 @@ public class AiServiceLayer {
         String translate(@V("text") String text, @V("targetLang") String targetLang);
     }
 
-    // 缓存的 Service 实例
-    private final GeneralAssistant generalAssistant;
-    private final CodeAssistant codeAssistant;
-    private final Translator translator;
-
-    // 会话管理
-    private final Map<String, ChatWithMemory> sessions = new ConcurrentHashMap<>();
-
     interface ChatWithMemory {
         @SystemMessage("你是一位友好的助手。记住上下文，提供连贯的对话体验。")
         String chat(@UserMessage String userMessage);
     }
 
-    public AiServiceLayer(ChatModel chatModel) {
-        this.generalAssistant = AiServices.create(GeneralAssistant.class, chatModel);
-        this.codeAssistant = AiServices.create(CodeAssistant.class, chatModel);
-        this.translator = AiServices.create(Translator.class, chatModel);
-    }
+    // 会话管理
+    private final Map<String, ChatWithMemory> sessions = new ConcurrentHashMap<>();
 
     /**
      * 通用问答
      */
     public String ask(String question) {
         log.debug("General question: {}", question);
-        return generalAssistant.chat(question);
+        return AiServices.create(GeneralAssistant.class, modelConfig.getActiveChatModel())
+                .chat(question);
     }
 
     /**
@@ -88,7 +75,8 @@ public class AiServiceLayer {
      */
     public String analyzeCode(String action, String code) {
         log.debug("Code analysis: action={}", action);
-        return codeAssistant.analyze(action, code);
+        return AiServices.create(CodeAssistant.class, modelConfig.getActiveChatModel())
+                .analyze(action, code);
     }
 
     /**
@@ -96,7 +84,8 @@ public class AiServiceLayer {
      */
     public String translate(String text, String targetLang) {
         log.debug("Translation: target={}", targetLang);
-        return translator.translate(text, targetLang);
+        return AiServices.create(Translator.class, modelConfig.getActiveChatModel())
+                .translate(text, targetLang);
     }
 
     /**
@@ -105,7 +94,7 @@ public class AiServiceLayer {
     public String chatWithSession(String sessionId, String message) {
         ChatWithMemory assistant = sessions.computeIfAbsent(sessionId, id ->
                 AiServices.builder(ChatWithMemory.class)
-                        .chatModel(chatModel)
+                        .chatModel(modelConfig.getActiveChatModel())
                         .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
                         .build()
         );
@@ -118,5 +107,13 @@ public class AiServiceLayer {
     public void clearSession(String sessionId) {
         sessions.remove(sessionId);
         log.info("Session cleared: {}", sessionId);
+    }
+
+    /**
+     * 清除所有会话缓存（模型切换时调用，避免旧会话绑定旧 ChatModel）
+     */
+    public void clearAllSessions() {
+        sessions.clear();
+        log.info("All sessions cleared (model switch)");
     }
 }

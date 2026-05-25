@@ -1,21 +1,25 @@
 package com.example.lc4j.controller;
 
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.memory.chat.TokenWindowChatMemory;
+import dev.langchain4j.model.TokenCountEstimator;
+import dev.langchain4j.model.openai.OpenAiTokenCountEstimator;
+import com.example.lc4j.service.AiServiceLayer;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.SystemMessage;
-import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
+import com.example.lc4j.config.LangChain4jConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Web API 控制器 - 演示 LangChain4j 在 Web 项目中的实际应用
@@ -38,13 +42,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ChatController {
 
     @Autowired
-    private ChatModel chatModel;
+    private LangChain4jConfig modelConfig;
 
     @Autowired
-    private StreamingChatModel streamingChatModel;
+    private AiServiceLayer aiServiceLayer;
 
-    // 简单会话管理（内存版，生产环境应用 Redis 等）
-    private final Map<String, dev.langchain4j.service.Assistant> sessions = new ConcurrentHashMap<>();
+    // 简单会话管理
+    private final Map<String, ChatWithMemory> sessions = new ConcurrentHashMap<>();
 
     // ==================== 1. 简单对话（无记忆） ====================
 
@@ -53,7 +57,7 @@ public class ChatController {
      */
     @GetMapping("/simple")
     public Map<String, String> simpleChat(@RequestParam String message) {
-        String response = chatModel.chat(message);
+        String response = modelConfig.getActiveChatModel().chat(message);
         return Map.of("message", message, "response", response);
     }
 
@@ -72,7 +76,7 @@ public class ChatController {
                         .messages(dev.langchain4j.data.message.UserMessage.from(message))
                         .build();
 
-        streamingChatModel.chat(chatRequest, new dev.langchain4j.model.chat.response.StreamingChatResponseHandler() {
+        modelConfig.getStreamingChatModel(modelConfig.getActiveModel()).chat(chatRequest, new dev.langchain4j.model.chat.response.StreamingChatResponseHandler() {
             @Override
             public void onPartialResponse(String partialResponse) {
                 sink.tryEmitNext(partialResponse);
@@ -110,10 +114,17 @@ public class ChatController {
         String message = request.get("message");
 
         // 获取或创建会话（每个用户独立的 ChatMemory）
+        // TokenWindowChatMemory(4096)：按 token 总数控制上下文窗口，更精确控制消耗
+        // 使用 OpenAiTokenCountEstimator，传入 gpt-4o 作为 tokenizer 模型名（O200K_BASE 编码通用）
+        TokenCountEstimator tokenEstimator = new OpenAiTokenCountEstimator("gpt-4o");
+
         ChatWithMemory assistant = sessions.computeIfAbsent(sessionId, id ->
                 AiServices.builder(ChatWithMemory.class)
-                        .chatModel(chatModel)
-                        .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
+                        .chatModel(modelConfig.getActiveChatModel())
+                        .chatMemory(TokenWindowChatMemory.builder()
+                                .id(sessionId)
+                                .maxTokens(4096, tokenEstimator)
+                                .build())
                         .build()
         );
 
@@ -154,7 +165,7 @@ public class ChatController {
             @RequestParam(defaultValue = "AI助手") String role,
             @RequestParam(defaultValue = "专业") String style) {
 
-        RoleAssistant assistant = AiServices.create(RoleAssistant.class, chatModel);
+        RoleAssistant assistant = AiServices.create(RoleAssistant.class, modelConfig.getActiveChatModel());
         String response = assistant.chat(message, role, style);
 
         return Map.of(
@@ -162,6 +173,71 @@ public class ChatController {
                 "style", style,
                 "message", message,
                 "response", response
+        );
+    }
+
+    // ==================== 5. 模型管理 ====================
+
+    /**
+     * 获取可用模型列表
+     * GET /api/chat/models
+     */
+    @GetMapping("/models")
+    public Map<String, Object> listModels() {
+        Map<String, LangChain4jConfig.ModelConfig> models = modelConfig.getModels();
+        Set<Map.Entry<String, LangChain4jConfig.ModelConfig>> entries = models.entrySet();
+        List<Map<String, String>> modelList = entries.stream().map(e -> {
+            LangChain4jConfig.ModelConfig c = e.getValue();
+            return Map.of(
+                    "id", e.getKey(),
+                    "provider", c.getProvider() != null ? c.getProvider() : "unknown",
+                    "modelName", c.getModelName() != null ? c.getModelName() : "",
+                    "description", c.getDescription() != null ? c.getDescription() : ""
+            );
+        }).collect(Collectors.toList());
+        return Map.of(
+                "activeModel", modelConfig.getActiveModel(),
+                "models", modelList
+        );
+    }
+
+    /**
+     * 切换当前激活模型
+     * POST /api/chat/model
+     * Body: {"modelId": "volc-doubao-pro"}
+     */
+    @PostMapping("/model")
+    public Map<String, Object> switchModel(@RequestBody Map<String, String> request) {
+        String modelId = request.get("modelId");
+        LangChain4jConfig.ModelConfig config = modelConfig.getModels().get(modelId);
+        if (config == null) {
+            return Map.of("error", "未知模型 ID: " + modelId,
+                    "availableModels", modelConfig.getModels().keySet());
+        }
+        modelConfig.setActiveModel(modelId);
+        modelConfig.evictAllChatModels();
+        // 清除会话缓存，避免旧会话绑定旧 ChatModel
+        sessions.clear();
+        aiServiceLayer.clearAllSessions();
+        return Map.of(
+                "message", "模型已切换",
+                "activeModel", modelId,
+                "modelName", config.getModelName(),
+                "provider", config.getProvider()
+        );
+    }
+
+    /**
+     * 查看当前模型状态
+     * GET /api/chat/model
+     */
+    @GetMapping("/model")
+    public Map<String, Object> modelStatus() {
+        LangChain4jConfig.ModelConfig config = modelConfig.getModels().get(modelConfig.getActiveModel());
+        return Map.of(
+                "activeModel", modelConfig.getActiveModel(),
+                "provider", config != null ? config.getProvider() : "unknown",
+                "modelName", config != null ? config.getModelName() : "unknown"
         );
     }
 }

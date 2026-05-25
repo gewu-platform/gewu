@@ -163,11 +163,11 @@ public class Day3AiServicesExample implements CommandLineRunner {
         CompletableFuture<Void> poemDone = new CompletableFuture<>();
 
         streamingAssistant.writePoem("春天的程序员")
-                .onNext(token -> {
+                .onPartialResponse(token -> {
                     System.out.print(token);
                     poem.append(token);
                 })
-                .onComplete(response -> {
+                .onCompleteResponse(response -> {
                     System.out.println();
                     log.info("流式诗歌完成");
                     poemDone.complete(null);
