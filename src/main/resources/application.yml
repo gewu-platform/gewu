@@ -1,0 +1,45 @@
+# ===========================================
+# LangChain4j Learning - 应用配置文件
+# ===========================================
+
+spring:
+  application:
+    name: langchain4j-learning
+
+# ==================== LangChain4j 配置 ====================
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api-key: ${DASHSCOPE_API_KEY}
+      model-name: qwen-plus
+      temperature: 0.7
+
+  # 每日学习示例开关（按需开启）
+  day1:
+    enabled: false       # Day1SyncExample
+    streaming: false     # Day1StreamingExample
+  day2:
+    template: false      # Day2PromptTemplateExample
+    memory: false        # Day2ChatMemoryExample
+  day3:
+    aiservices: false    # Day3AiServicesExample
+  day4:
+    toolcall: false      # Day4ToolCallingExample
+  day5:
+    outputparsing: false # Day5OutputParsingExample
+    comprehensive: false # Day5ComprehensiveExample
+  day6:
+    rag: false           # Day6RagExample
+  day7:
+    comprehensive: false # Day7ComprehensiveExample
+
+# ==================== 服务器配置 ====================
+server:
+  port: 8081
+
+# ==================== 日志配置 ====================
+logging:
+  level:
+    root: INFO
+    com.example.lc4j: DEBUG
