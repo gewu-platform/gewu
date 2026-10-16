@@ -151,3 +151,46 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_session_id ON token_usage(session_id)
 CREATE INDEX IF NOT EXISTS idx_token_usage_create_time ON token_usage(create_time);
 CREATE INDEX IF NOT EXISTS idx_token_usage_model ON token_usage(model);
 CREATE INDEX IF NOT EXISTS idx_token_usage_message_id ON token_usage(message_id);
+
+-- ==========================================
+-- 7. 知识库文档表 (knowledge_document) - 对齐 native（P4）
+-- ==========================================
+CREATE TABLE IF NOT EXISTS knowledge_document (
+    id          BIGSERIAL       PRIMARY KEY,
+    file_name   VARCHAR(255)    NOT NULL,
+    file_type   VARCHAR(20)     NOT NULL,
+    file_size   BIGINT          DEFAULT 0,
+    file_path   VARCHAR(500)    NOT NULL,
+    content     TEXT            DEFAULT NULL,
+    chunk_count INT             DEFAULT 0,
+    status      SMALLINT        DEFAULT 0,
+    created_by  VARCHAR(50)     DEFAULT 'system',
+    error_msg   VARCHAR(1000)   DEFAULT NULL,
+    create_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    deleted     SMALLINT        DEFAULT 0
+);
+COMMENT ON TABLE knowledge_document IS '知识库文档表 - 上传的文档元数据与解析状态';
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_document_status ON knowledge_document(status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_document_deleted ON knowledge_document(deleted);
+
+-- ==========================================
+-- 8. 文档分块表 (document_chunk) - 对齐 native（P4，pgvector 向量）
+-- ==========================================
+CREATE TABLE IF NOT EXISTS document_chunk (
+    id          BIGSERIAL       PRIMARY KEY,
+    document_id BIGINT          NOT NULL REFERENCES knowledge_document(id) ON DELETE CASCADE,
+    chunk_index INT             NOT NULL,
+    content     TEXT            NOT NULL,
+    -- 维度与 embedding 模型输出对齐；doubao-embedding-vision 端点 2048（native 实测）。
+    -- 如切换到其它模型，同步 ALTER TABLE ... ALTER COLUMN embedding TYPE vector(N)。
+    embedding   vector(2048)    NOT NULL,
+    dimension   INT             DEFAULT 0,
+    create_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE document_chunk IS '文档分块表 - 内容切片与 pgvector 向量';
+
+CREATE INDEX IF NOT EXISTS idx_document_chunk_document_id ON document_chunk(document_id);
+CREATE INDEX IF NOT EXISTS idx_document_chunk_chunk_index ON document_chunk(chunk_index);

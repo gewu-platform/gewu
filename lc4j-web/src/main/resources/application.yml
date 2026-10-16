@@ -6,6 +6,14 @@ spring:
   application:
     name: langchain4j-learning
 
+  # ==================== 文件上传配置（对齐 native：P4 知识库） ====================
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 100MB
+      file-size-threshold: 2MB
+
   # ==================== 数据库配置 ====================
   # PostgreSQL（业务数据 + 知识库向量，对齐 java-ai-native）
   datasource:
