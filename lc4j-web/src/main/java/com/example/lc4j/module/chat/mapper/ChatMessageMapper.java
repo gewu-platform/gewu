@@ -1,19 +1,16 @@
-package com.example.lc4j.mapper;
+package com.example.lc4j.module.chat.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.example.lc4j.entity.ChatMessage;
+import com.example.lc4j.module.chat.entity.ChatMessage;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
 /**
- * 聊天消息 Mapper
- * 
- * @author Matilda
- * @since 2026-05-25
+ * 聊天消息 Mapper（对齐 java-ai-native ChatMessageMapper）
  */
 @Mapper
 public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
@@ -30,7 +27,13 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     @Select("SELECT * FROM chat_message WHERE session_id = #{sessionId} " +
             "ORDER BY create_time DESC LIMIT #{limit}")
     List<ChatMessage> selectBySessionIdLimit(@Param("sessionId") String sessionId,
-                                              @Param("limit") int limit);
+                                             @Param("limit") int limit);
+
+    /**
+     * 根据用户 ID 查询消息列表
+     */
+    @Select("SELECT * FROM chat_message WHERE user_id = #{userId} ORDER BY create_time ASC")
+    List<ChatMessage> selectByUserId(@Param("userId") Long userId);
 
     /**
      * 统计会话消息数量

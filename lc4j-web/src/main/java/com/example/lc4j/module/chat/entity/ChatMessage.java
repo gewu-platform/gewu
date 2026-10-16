@@ -1,19 +1,17 @@
-package com.example.lc4j.entity;
+package com.example.lc4j.module.chat.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 聊天消息实体
+ * 聊天消息实体（对齐 java-ai-native ChatMessage）
  *
- * 对应表：chat_message（PostgreSQL，对齐 java-ai-native 表结构）
- * 用途：存储 LangChain4j 多轮对话的消息记录
- *
- * @author Matilda
- * @since 2026-05-25
+ * 对应表：chat_message（PostgreSQL）
  */
 @Data
 @TableName("chat_message")

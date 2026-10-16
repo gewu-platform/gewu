@@ -129,3 +129,25 @@ CREATE INDEX IF NOT EXISTS idx_sys_token_user_id ON sys_token(user_id);
 CREATE INDEX IF NOT EXISTS idx_sys_token_token ON sys_token(token);
 CREATE INDEX IF NOT EXISTS idx_sys_token_status ON sys_token(status);
 CREATE INDEX IF NOT EXISTS idx_sys_token_expires_at ON sys_token(expires_at);
+
+-- ==========================================
+-- 6. Token 使用统计表 (token_usage) - 对齐 native（P3）
+-- ==========================================
+CREATE TABLE IF NOT EXISTS token_usage (
+    id            BIGSERIAL       PRIMARY KEY,
+    session_id    VARCHAR(64)     DEFAULT NULL,
+    message_id    BIGINT          DEFAULT NULL,
+    model         VARCHAR(50)     DEFAULT NULL,
+    input_tokens  INT             DEFAULT NULL,
+    output_tokens INT             DEFAULT NULL,
+    total_tokens  INT             DEFAULT NULL,
+    cost          DECIMAL(10, 6)  DEFAULT NULL,
+    cached_tokens INT             DEFAULT NULL,
+    create_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE token_usage IS 'Token 使用统计表 - 记录每次 API 调用的 token 消耗和成本';
+
+CREATE INDEX IF NOT EXISTS idx_token_usage_session_id ON token_usage(session_id);
+CREATE INDEX IF NOT EXISTS idx_token_usage_create_time ON token_usage(create_time);
+CREATE INDEX IF NOT EXISTS idx_token_usage_model ON token_usage(model);
+CREATE INDEX IF NOT EXISTS idx_token_usage_message_id ON token_usage(message_id);
