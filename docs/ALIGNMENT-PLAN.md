@@ -1,8 +1,9 @@
-# langchain4j-learning 对齐 java-ai-native 开发计划（develop 正式版 v2.2）
+# langchain4j-learning 对齐 java-ai-native 开发计划（develop 正式版 v2.3）
 
 > 创建：2026-10-16 | 分支：**develop**（正式开发）
 > 学习资产已归档至 **learn** 分支（Day1-8 示例 + embedding 适配器验证版 + 设计文档）。
 > v2.2：逐模块扫描 native 源码后全面核对，修正 6 处遗漏（prompt 版本制/双统计表/Agent 完整形态/多模态/系统提示词/monitor 形态）。
+> v2.3：Maven 多模块重构落地（对齐 native 模块划分 ai-*→lc4j-*），P0/P1 完成，admin hash 修正。
 
 ---
 
@@ -53,26 +54,32 @@
 
 ---
 
-## 三、目标架构（develop 最终形态）
+## 三、目标架构（v2.3：已落地 Maven 多模块）
 
-### 后端包结构（平铺 → 模块化）
+### 后端模块结构（已实施，对齐 java-ai-native 模块划分）
 
 ```
-com.example.lc4j/
-├── LangChain4jLearningApplication.java
-├── common/                  # 新增：R / ErrorCode / BizException / PageResult
-├── config/                  # 已有 + 移植 VolcMultiModalEmbeddingModel + 新增 SecurityConfig/AsyncConfig
-├── infrastructure/security/ # 新增：JwtUtil / JwtAuthFilter
-├── module/
-│   ├── auth/                # 新增：login/register/refresh/logout/me
-│   ├── user/                # 新增：profile/password
-│   ├── chat/                # 重构迁入：多会话 CRUD + SSE + 模型管理
-│   ├── knowledge/           # 新增：上传/解析/向量化/检索（对照 native knowledge 模块）
-│   ├── prompt/              # 新增：模板 CRUD/执行/版本/回滚
-│   ├── monitor/             # 新增：llm_call_log 埋点 + 统计/排行/分页
-│   └── agent/               # 新增：LangChain4j @Tool 工具 + AgentService
-└── example/                 # 保留：Day1-7（开关全关）+ 移植 Day8 参考
+langchain4j-learning/
+├── lc4j-common/             # R / ErrorCode / BizException / GlobalExceptionHandler / PageResult
+├── lc4j-security/           # JwtUtil / JwtAuthenticationEntryPoint
+├── lc4j-config/             # MybatisPlusConfig
+├── lc4j-client/             # LangChain4jConfig / VolcMultiModalEmbeddingModel
+└── lc4j-web/                # 启动类 + 全部业务
+    └── com.example.lc4j/
+        ├── controller/      # 旧对话 API（过渡期）
+        ├── entity/ mapper/ service/   # 旧对话实体（P3 迁入 module/chat）
+        ├── example/         # Day1-8 示例（开关全关）
+        ├── infrastructure/security/   # SecurityConfig / JwtAuthenticationFilter / CustomUserDetailsService / AuthThrottle*
+        ├── module/auth/     # 登录/注册/刷新/登出（已完成）
+        ├── module/user/     # profile/password（已完成）
+        ├── module/knowledge/  # P4：上传/解析/向量化/检索（对照 native knowledge 模块）
+        ├── module/prompt/     # P5：模板 CRUD/执行/版本/回滚
+        ├── module/monitor/    # P6：llm_call_log 埋点 + 统计/排行/分页
+        ├── module/agent/      # P7：LangChain4j @Tool 工具 + AgentService
+        └── module/chat/       # P3：旧对话实体迁入 + 多会话 CRUD + SSE
 ```
+
+> 启动方式：`mvn install -DskipTests` 后 `mvn spring-boot:run -pl lc4j-web`（`-am` 会让根项目也执行 run 而报 mainClass 错）。
 
 ### 数据库表（PostgreSQL 17 + pgvector 0.8.2，库 `langchain4j_kb`）
 
@@ -96,18 +103,19 @@ com.example.lc4j/
 
 ## 四、阶段计划（约 9~11 个学习日）
 
-### P0 资产移植 + 数据库切换（1 天）
-- [ ] 从 learn 复制 VolcMultiModalEmbeddingModel + pom 依赖 + embedding 配置段 → 编译验证
-- [ ] 对齐 native VolcEmbeddingClient 功能形态：补 429 退避重试（2s/4s/6s×3）+ 预留 text 模式（标准 /embeddings 批量）；接口保持 LangChain4j EmbeddingModel
-- [ ] ~~curl 验证向量维度~~（已确认：native 实测 2048）
-- [ ] PG 建库 `langchain4j_kb` + chat_session/chat_message 迁移表 + MySQL 数据导出
-- [ ] pom 移除 mysql-connector-j；yml 切 PG 数据源；统一 R/ErrorCode/BizException/PageResult
-- [ ] 验收：应用在 PG 上启动，旧对话 API（simple/stream/session/role）全走通
+### P0 资产移植 + 数据库切换（1 天）✅ 完成
+- [x] 从 learn 复制 VolcMultiModalEmbeddingModel + pom 依赖 + embedding 配置段 → 编译验证
+- [x] 对齐 native VolcEmbeddingClient 功能形态：补 429 退避重试（2s/4s/6s×3）+ 预留 text 模式（标准 /embeddings 批量）；接口保持 LangChain4j EmbeddingModel
+- [x] ~~curl 验证向量维度~~（已确认：native 实测 2048）
+- [x] PG 建库 `langchain4j_kb` + chat_session/chat_message 迁移表 + MySQL 数据导出（旧数据 0 条无需迁移）
+- [x] pom 移除 mysql-connector-j；yml 切 PG 数据源；统一 R/ErrorCode/BizException/PageResult
+- [x] 验收：应用在 PG 上启动，旧对话 API（simple/stream/session/role）全走通
 
-### P1 认证模块（1 天）
-- [ ] sys_user/sys_token 表；JwtUtil + JwtAuthFilter + SecurityConfig
-- [ ] auth/user 模块（BCrypt、登录限流 5 次/5min 对齐 native）
-- [ ] 验收：注册→登录→me→refresh→logout 全链路 curl 走通
+### P1 认证模块（1 天）✅ 完成（多模块重构后交付）
+- [x] sys_user/sys_token 表；JwtUtil + JwtAuthFilter + SecurityConfig
+- [x] auth/user 模块（BCrypt、登录限流 5 次/300 秒滑动窗口，配置形态对齐 native `security.auth.throttle`）
+- [x] 验收：注册→登录→me→refresh→logout 全链路 curl 走通（7/7），限流 429 验收通过
+- [x] 修复 admin BCrypt hash（native init SQL 原始 hash 与 admin123 不匹配，spring-security-crypto 重新生成并验证）
 
 ### P2 前端 UI 框架对齐（1.5 天）★ 风格分水岭
 - [ ] ant-design-vue 引入；App.vue 整体重写（毛玻璃 header / blob logo / nav-tabs / 状态 pill / 用户下拉）
@@ -144,7 +152,7 @@ com.example.lc4j/
 
 ### P7 Agent（2~2.5 天）
 - [ ] LangChain4j 原生 Tool Calling（@Tool + AiServices）：Calculator/DateTime/TimeZone/Search 四件套（Search 占位，对齐 native）
-- [ ] **AgentDefinition 动态定义**（对齐 native）：id/name/description/avatar/systemPrompt/绑定工具/配置，DB 持久化 + AgentRegistry 运行时注册
+- [ ] **AgentDefinition 动态定义**（对齐 native）：id/name/system_prompt/绑定工具/配置，DB 持久化 + AgentRegistry 运行时注册
 - [ ] **双对话模式**（对齐 native）：/chat/simple（直答）/chat/smart（ReAct 式工具链）/chat/stream + /chat/smart/stream（SSE）
 - [ ] **ToolApprovalGateway 工具审批网关**（对齐 native）：只读工具自动放行、search/自定义 HTTP 工具需审批、未知工具默认拦截；/approval/pending、/approval/approve、/approval/reject 三端点
 - [ ] **AgentDispatchTool**：Agent 间调度工具（主 Agent 可调用其他 Agent 作为工具，对齐 native）
@@ -178,13 +186,14 @@ com.example.lc4j/
 | 10 | 双统计表 | token_usage（会话/成本）+ llm_call_log（调用日志）| native 双表各有分工，v2.1 漏了前者 |
 | 11 | Agent 范围 | 完整对齐：定义/审批网关/双模式/调度工具 | v2.1 只对齐了基础四工具，砍太多 |
 | 12 | 多模态对话 | 后端字段+API 先预留，图像输入可后置 | native 已支持图文混合，不补就称不上「完全对齐」 |
+| 13 | Maven 多模块 | lc4j-common/security/config/client/web（对齐 native ai-* 划分） | 老板指示参考 native 重构；启动：install 后 -pl lc4j-web run |
 
 ## 六、风险
 
 1. ~~火山 embedding 维度未实测~~（已解除：native 实测 2048）
 2. **流式 TokenUsage 时机**与 Spring AI 不同 → P3 预留调试
 3. **前端换肤工作量**（3 旧页全重写）→ P2 集中处理
-4. **MySQL→PG 会话迁移**手工进行，量大再写脚本
+4. ~~MySQL→PG 会话迁移~~（已解除：旧数据 0 条）
 5. **learn 分支 3 提交未 push** → 建议确认后 push 留档，防本地丢失
 6. **Agent 阶段工作量最大**（审批网关/动态定义/调度工具）→ P7 已扩至 2~2.5 天，必要时可拆 P7a/P7b 两批交付
 7. **多模态对话**依赖 LangChain4j 图文消息 API → 先落库结构和 API 契约，图像输入后置，不阻塞主链路
