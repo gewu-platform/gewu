@@ -6,7 +6,7 @@
     <select id="selectActive" resultType="com.example.lc4j.entity.ChatSession">
         SELECT * FROM chat_session
         WHERE is_deleted = 0
-        ORDER BY updated_at DESC
+        ORDER BY update_time DESC
     </select>
 
     <!-- 统计会话数量 -->

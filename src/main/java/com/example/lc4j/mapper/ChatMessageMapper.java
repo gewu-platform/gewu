@@ -21,14 +21,14 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     /**
      * 根据会话 ID 查询消息列表（按创建时间升序）
      */
-    @Select("SELECT * FROM chat_message WHERE session_id = #{sessionId} ORDER BY created_at ASC")
+    @Select("SELECT * FROM chat_message WHERE session_id = #{sessionId} ORDER BY create_time ASC")
     List<ChatMessage> selectBySessionId(@Param("sessionId") String sessionId);
 
     /**
      * 根据会话 ID 查询最新消息（限制数量）
      */
     @Select("SELECT * FROM chat_message WHERE session_id = #{sessionId} " +
-            "ORDER BY created_at DESC LIMIT #{limit}")
+            "ORDER BY create_time DESC LIMIT #{limit}")
     List<ChatMessage> selectBySessionIdLimit(@Param("sessionId") String sessionId,
                                               @Param("limit") int limit);
 

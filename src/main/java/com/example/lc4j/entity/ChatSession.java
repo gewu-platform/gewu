@@ -4,11 +4,12 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
  * 聊天会话实体
- * 
- * 对应表：chat_session
+ *
+ * 对应表：chat_session（PostgreSQL，对齐 java-ai-native 表结构）
  * 用途：管理 LangChain4j 多轮对话的会话信息
  *
  * @author Matilda
@@ -27,14 +28,9 @@ public class ChatSession implements Serializable {
     private String id;
 
     /**
-     * 用户 ID（预留字段，多用户场景使用）
+     * 用户 ID（关联 sys_user，多用户场景使用）
      */
-    private String userId;
-
-    /**
-     * 会话标题 - 如"第一个问题"
-     */
-    private String title;
+    private Long userId;
 
     /**
      * 模式 - text:文本模式 / multimodal:多模态模式
@@ -42,7 +38,7 @@ public class ChatSession implements Serializable {
     private String mode;
 
     /**
-     * 使用的模型 - 如 qwen-plus, qwen-max
+     * 使用的模型 - 如 volc-lite-endpoint
      */
     private String model;
 
@@ -67,14 +63,14 @@ public class ChatSession implements Serializable {
     private Long outputTokens;
 
     /**
-     * 创建时间戳 - 毫秒级时间戳
+     * 创建时间
      */
-    private Long createdAt;
+    private LocalDateTime createTime;
 
     /**
-     * 最后更新时间戳 - 毫秒级时间戳
+     * 最后更新时间
      */
-    private Long updatedAt;
+    private LocalDateTime updateTime;
 
     /**
      * 是否删除 - 0:未删除 / 1:已删除（软删除）

@@ -20,21 +20,19 @@ public interface ChatSessionMapper extends BaseMapper<ChatSession> {
     /**
      * 更新会话消息数量
      */
-    @Update("UPDATE chat_session SET message_count = #{messageCount}, updated_at = #{updatedAt} WHERE id = #{id}")
-    int updateMessageCount(@Param("id") String id, 
-                           @Param("messageCount") int messageCount,
-                           @Param("updatedAt") Long updatedAt);
+    @Update("UPDATE chat_session SET message_count = #{messageCount}, update_time = CURRENT_TIMESTAMP WHERE id = #{id}")
+    int updateMessageCount(@Param("id") String id,
+                           @Param("messageCount") int messageCount);
 
     /**
      * 更新会话 Token 统计（累加）
      */
     @Update("UPDATE chat_session SET input_tokens = input_tokens + #{inputTokens}, " +
             "output_tokens = output_tokens + #{outputTokens}, " +
-            "updated_at = #{updatedAt} WHERE id = #{id}")
+            "update_time = CURRENT_TIMESTAMP WHERE id = #{id}")
     int updateTokenStats(@Param("id") String id,
                          @Param("inputTokens") Long inputTokens,
-                         @Param("outputTokens") Long outputTokens,
-                         @Param("updatedAt") Long updatedAt);
+                         @Param("outputTokens") Long outputTokens);
 
     /**
      * 查询未删除的会话（按更新时间倒序）

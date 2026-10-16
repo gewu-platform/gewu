@@ -38,15 +38,14 @@ public class ChatService {
     public ChatSession createSession(String userId, String model, String systemPrompt) {
         ChatSession session = new ChatSession();
         session.setId(UUID.randomUUID().toString());
-        session.setUserId(userId != null ? userId : "default");
+        session.setUserId(userId != null ? Long.parseLong(userId) : null);
         session.setModel(model);
         session.setSystemPrompt(systemPrompt);
         session.setMode("text");
         session.setMessageCount(0);
         session.setInputTokens(0L);
         session.setOutputTokens(0L);
-        session.setCreatedAt(System.currentTimeMillis());
-        session.setUpdatedAt(System.currentTimeMillis());
+        // create_time/update_time 由数据库 DEFAULT CURRENT_TIMESTAMP 维护
         session.setIsDeleted(0);
 
         sessionMapper.insert(session);
@@ -73,7 +72,7 @@ public class ChatService {
     @Transactional
     public void clearMessages(String sessionId) {
         messageMapper.deleteBySessionId(sessionId);
-        sessionMapper.updateMessageCount(sessionId, 0, System.currentTimeMillis());
+        sessionMapper.updateMessageCount(sessionId, 0);
         log.info("清空会话消息: id={}", sessionId);
     }
 
@@ -109,22 +108,21 @@ public class ChatService {
         message.setOutputTokens(outputTokens);
         message.setFinishReason(finishReason);
         message.setRequestId(requestId);
-        message.setCreatedAt(System.currentTimeMillis());
+        // create_time 由数据库 DEFAULT CURRENT_TIMESTAMP 维护
 
         messageMapper.insert(message);
 
         // 更新会话统计
         int messageCount = messageMapper.countBySessionId(sessionId);
-        sessionMapper.updateMessageCount(sessionId, messageCount, System.currentTimeMillis());
+        sessionMapper.updateMessageCount(sessionId, messageCount);
 
         if (inputTokens != null || outputTokens != null) {
-            sessionMapper.updateTokenStats(sessionId, 
+            sessionMapper.updateTokenStats(sessionId,
                     inputTokens != null ? inputTokens.longValue() : 0L,
-                    outputTokens != null ? outputTokens.longValue() : 0L,
-                    System.currentTimeMillis());
+                    outputTokens != null ? outputTokens.longValue() : 0L);
         }
 
-        log.debug("保存消息: sessionId={}, role={}, tokens={}", sessionId, role, 
+        log.debug("保存消息: sessionId={}, role={}, tokens={}", sessionId, role,
                 inputTokens != null ? inputTokens : 0);
     }
 
