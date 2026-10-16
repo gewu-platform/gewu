@@ -1,0 +1,116 @@
+# ===========================================
+# LangChain4j Learning - 应用配置文件
+# ===========================================
+
+spring:
+  application:
+    name: langchain4j-learning
+
+  # ==================== 数据库配置 ====================
+  # PostgreSQL（业务数据 + 知识库向量，对齐 java-ai-native）
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/langchain4j_kb
+    username: postgres
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      pool-name: LangChain4jKbHikariPool
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+# ==================== LangChain4j 配置 ====================
+langchain4j:
+  # 当前激活的模型 ID
+  active-model: volc-lite-endpoint
+
+  # 多模型配置
+  models:
+    # 火山引擎方舟（Coding Plan Lite - 推理接入点）
+    # modelName 使用控制台创建的端点 ID
+    volc-lite-endpoint:
+      provider: volcengine
+      baseUrl: https://ark.cn-beijing.volces.com/api/v3
+      apiKey: ${VOLC_API_KEY:REDACTED-VOLC-KEY}
+      modelName: ep-20260525141015-h6skp
+      temperature: 0.7
+      description: "火山 Lite 端点 (ep-h6skp)"
+
+    # 保留兼容配置（供 Day1-7 学习示例使用）
+    open-ai:
+      chat-model:
+        base-url: https://ark.cn-beijing.volces.com/api/v3
+        api-key: ${VOLC_API_KEY:REDACTED-VOLC-KEY}
+        model-name: ep-20260525141015-h6skp
+        temperature: 0.7
+
+  # Embedding 配置（火山引擎 - 多模态 Doubao-embedding-vision 端点）
+  embedding:
+    base-url: https://ark.cn-beijing.volces.com/api/v3
+    api-key: ${VOLC_EMBEDDING_API_KEY:REDACTED-VOLC-KEY}
+    model: ep-20260609173940-d5d4l
+    dimension: 2048
+    # multimodal: 多模态端点逐条串行 | text: 标准 /embeddings 真批量
+    mode: multimodal
+
+  # 每日学习示例开关（按需开启）
+  day1:
+    enabled: false       # Day1SyncExample
+    streaming: false     # Day1StreamingExample
+  day2:
+    template: false      # Day2PromptTemplateExample
+    memory: false        # Day2ChatMemoryExample
+  day3:
+    aiservices: false    # Day3AiServicesExample
+  day4:
+    toolcall: false      # Day4ToolCallingExample
+  day5:
+    outputparsing: false # Day5OutputParsingExample
+    comprehensive: false # Day5ComprehensiveExample
+  day6:
+    rag: false           # Day6RagExample
+  day7:
+    comprehensive: false # Day7ComprehensiveExample
+  day8:
+    rag-prod: false      # Day8RagProdExample（默认关闭：依赖 PG 在线，避免启动即执行）
+
+# ==================== MyBatis-Plus 配置 ====================
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*Mapper.xml
+  type-aliases-package: com.example.lc4j.entity
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+    banner: false
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# ==================== 服务器配置 ====================
+server:
+  port: 8081
+
+# ==================== 日志配置 ====================
+logging:
+  level:
+    root: INFO
+    com.example.lc4j: DEBUG
+
+# ==================== JWT 配置 ====================
+jwt:
+  secret: ${JWT_SECRET:mySecretKeyMustBeAtLeast32CharactersLongForHS512Algorithm}
+  expiration: ${JWT_EXPIRATION:86400} # 24小时（秒）
+
+# ==================== 自定义安全配置（对齐 native） ====================
+security:
+  auth:
+    throttle:
+      enabled: true
+      max-attempts: 5
+      window-seconds: 300
