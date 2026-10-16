@@ -38,16 +38,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String requestURI = request.getRequestURI();
 
-        // 不对认证接口和健康检查应用JWT过滤
+        // 只跳过登录/注册与健康检查（公开端点由 SecurityConfig 放行；其余请求统一走 JWT 认证）
         if (requestURI.startsWith("/api/auth/") ||
-                requestURI.startsWith("/api/chat/simple") ||
-                requestURI.startsWith("/api/chat/stream") ||
-                requestURI.startsWith("/api/chat/role") ||
-                requestURI.startsWith("/api/chat/models") ||
-                requestURI.startsWith("/api/chat/model") ||
-                requestURI.startsWith("/api/service/") ||
-                requestURI.startsWith("/api/health/") ||
-                requestURI.startsWith("/actuator/")) {
+                requestURI.startsWith("/api/health/")) {
             chain.doFilter(request, response);
             return;
         }

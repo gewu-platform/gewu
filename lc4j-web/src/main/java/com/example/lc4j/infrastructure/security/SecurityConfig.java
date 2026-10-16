@@ -73,16 +73,17 @@ public class SecurityConfig {
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint(jwtAuthenticationEntryPoint)
             )
-            // 授权配置（过渡期：旧 API 放行，用户模块要求认证）
+            // 授权配置（对齐 native：健康检查/公开端点放行，其余全部认证）
             .authorizeHttpRequests(authz -> authz
                 // ASYNC dispatch（SseEmitter 完成后的内部转发）直接放行
                 .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 .requestMatchers("/api/auth/**").permitAll()      // 认证接口无需认证
-                .requestMatchers("/api/chat/**").permitAll()      // 过渡期放行，P3 收紧
-                .requestMatchers("/api/service/**").permitAll()   // 过渡期放行
                 .requestMatchers("/api/health/**").permitAll()    // 健康检查无需认证
-                .requestMatchers("/actuator/**").permitAll()      // 过渡期放行
-                .anyRequest().authenticated()                     // 其他请求必须认证（含 /api/user/**）
+                .requestMatchers("/api/chat/health").permitAll()  // 聊天健康检查无需认证
+                .requestMatchers("/api/agent/health").permitAll() // Agent 健康检查无需认证
+                .requestMatchers("/api/agent/tools").permitAll()  // Agent 工具列表无需认证
+                .requestMatchers("/actuator/**").hasRole("ACTUATOR") // 执行器需要 ACTUATOR 角色（对齐 native）
+                .anyRequest().authenticated()                     // 其他请求必须认证（含 /api/chat/**、/api/service/**、/api/user/**）
             )
             // 禁用CSRF，适用于API应用
             .csrf(csrf -> csrf
