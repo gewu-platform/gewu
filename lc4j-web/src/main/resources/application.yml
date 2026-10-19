@@ -109,6 +109,8 @@ logging:
   level:
     root: INFO
     com.example.lc4j: DEBUG
+  file:
+    name: logs/lc4j-web.log
 
 # ==================== JWT 配置 ====================
 jwt:
