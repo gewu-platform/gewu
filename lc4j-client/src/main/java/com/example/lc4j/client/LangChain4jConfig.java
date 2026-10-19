@@ -2,7 +2,9 @@ package com.example.lc4j.client;
 
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -169,12 +171,22 @@ public class LangChain4jConfig {
                     ", 可用模型：" + models.keySet());
         }
 
+        // 火山 doubao-seed 系列是深度思考模型：思考期间只发 reasoning_content，
+        // langchain4j 只回调 content（thinking 内容被丢）→ 前端看起来卡住直到流结束；
+        // 用 customParameters 平铺 thinking:{type:disabled} 关闭思考，恢复逐字流式
+        Map<String, Object> custom = new HashMap<>();
+        custom.put("thinking", Map.of("type", "disabled"));
+        ChatRequestParameters params = OpenAiChatRequestParameters.builder()
+                .customParameters(custom)
+                .build();
+
         return OpenAiStreamingChatModel.builder()
                 .baseUrl(config.getBaseUrl())
                 .apiKey(config.getApiKey())
                 .modelName(config.getModelName())
                 .temperature(config.getTemperature())
                 .timeout(Duration.ofSeconds(300))
+                .defaultRequestParameters(params)
                 .logRequests(true)
                 .logResponses(true)
                 .build();
