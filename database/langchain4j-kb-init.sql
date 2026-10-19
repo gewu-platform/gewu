@@ -194,3 +194,51 @@ COMMENT ON TABLE document_chunk IS '文档分块表 - 内容切片与 pgvector �
 
 CREATE INDEX IF NOT EXISTS idx_document_chunk_document_id ON document_chunk(document_id);
 CREATE INDEX IF NOT EXISTS idx_document_chunk_chunk_index ON document_chunk(chunk_index);
+
+-- =============================================================
+-- 9. Prompt 模板表 (prompt_template) - 对齐 native（P5）
+--    单表多版本：同 name 多 version，uk_name_version 唯一约束
+-- =============================================================
+CREATE TABLE IF NOT EXISTS prompt_template (
+    id                   BIGSERIAL       PRIMARY KEY,
+    name                 VARCHAR(100)    NOT NULL,
+    version              INT             NOT NULL DEFAULT 1,
+    system_prompt        TEXT            DEFAULT NULL,
+    user_prompt_template TEXT            NOT NULL,
+    model                VARCHAR(50)     DEFAULT NULL,
+    temperature          DOUBLE PRECISION DEFAULT 0.7,
+    max_tokens           INT             DEFAULT 2048,
+    description          VARCHAR(500)    DEFAULT NULL,
+    is_active            SMALLINT        NOT NULL DEFAULT 1,
+    is_deleted           SMALLINT        NOT NULL DEFAULT 0,
+    create_time          TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time          TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_name_version UNIQUE (name, version)
+);
+COMMENT ON TABLE prompt_template IS 'Prompt 模板表 - 版本制模板管理（P5）';
+COMMENT ON COLUMN prompt_template.user_prompt_template IS 'User Prompt 模板，{variable} 占位符';
+COMMENT ON COLUMN prompt_template.is_active IS '是否启用：1 启用 0 停用（回滚时旧版本置 0）';
+
+-- MyBatis Boolean 参数经 JDBC 发出为 bool 类型，PG 拒绝隐式转换到 smallint；
+-- 加函数式 IMPLICIT CAST 修复（INOUT 转换走 I/O 路径会把 "t" 直接喂给 int2 输入函数而报错，
+-- 必须用自定义函数真转换）
+DO $do$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_cast
+        WHERE castsource = 'boolean'::regtype AND casttarget = 'smallint'::regtype
+          AND castmethod = 'i'
+    ) THEN
+        DROP CAST (boolean AS smallint);
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_cast
+        WHERE castsource = 'boolean'::regtype AND casttarget = 'smallint'::regtype
+    ) THEN
+        CREATE OR REPLACE FUNCTION bool_to_smallint(b boolean) RETURNS smallint
+        AS $$ SELECT CASE WHEN b THEN 1 ELSE 0 END $$
+        LANGUAGE sql IMMUTABLE;
+        CREATE CAST (boolean AS smallint) WITH FUNCTION bool_to_smallint(boolean) AS IMPLICIT;
+    END IF;
+END
+$do$;
