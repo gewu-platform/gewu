@@ -24,10 +24,6 @@
         </dependency>
         <dependency>
             <groupId>com.example</groupId>
-            <artifactId>lc4j-config</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.example</groupId>
             <artifactId>lc4j-client</artifactId>
         </dependency>
         <dependency>

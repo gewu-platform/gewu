@@ -17,10 +17,10 @@
     <description>AI 客户端模块：LangChain4j 模型工厂、火山多模态 Embedding 适配器</description>
 
     <dependencies>
-        <!-- 内部依赖 -->
+        <!-- Spring Boot（@ConfigurationProperties/@Configuration，此前由 lc4j-config 传递，模块下线后直接声明） -->
         <dependency>
-            <groupId>com.example</groupId>
-            <artifactId>lc4j-config</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
         </dependency>
 
         <!-- LangChain4j 核心 -->
