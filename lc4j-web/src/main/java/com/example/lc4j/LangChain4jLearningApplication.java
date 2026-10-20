@@ -21,7 +21,7 @@ public class LangChain4jLearningApplication {
         SpringApplication.run(LangChain4jLearningApplication.class, args);
         System.out.println("""
             ╔═════════════════════════════════════════════════╗
-            ║   LangChain4j Learning - 学习项目已启动
+            ║   LangChain4j Learning - 项目已启动
             ╚═════════════════════════════════════════════════╝
             """);
     }

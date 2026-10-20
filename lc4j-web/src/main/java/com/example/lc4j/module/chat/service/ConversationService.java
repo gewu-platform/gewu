@@ -5,6 +5,7 @@ import com.example.lc4j.common.BizException;
 import com.example.lc4j.common.ErrorCode;
 import com.example.lc4j.module.chat.entity.ChatMessage;
 import com.example.lc4j.module.chat.entity.ChatSession;
+import com.example.lc4j.module.monitor.service.LlmMonitorService;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -36,6 +37,7 @@ public class ConversationService {
     private final ChatSessionService sessionService;
     private final ChatMessageService messageService;
     private final TokenUsageService tokenUsageService;
+    private final LlmMonitorService llmMonitorService;
 
     /**
      * 创建新会话
@@ -228,6 +230,14 @@ public class ConversationService {
                     inputTokens, outputTokens, 0
             );
         }
+
+        // 异步记录 LLM 调用日志（P6 监控埋点，不阻塞主流程；sync/stream 两路在此汇合）
+        llmMonitorService.asyncRecordCall(
+                sessionId, modelId, null,
+                inputTokens, outputTokens, latency,
+                "success", null,
+                userMessage, replyText, null
+        );
 
         log.info("对话完成：sessionId={}, latency={}ms, in={}, out={}",
                 sessionId, latency, inputTokens, outputTokens);

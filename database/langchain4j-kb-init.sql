@@ -242,3 +242,33 @@ BEGIN
     END IF;
 END
 $do$;
+
+-- =============================================================
+-- 10. LLM 调用日志表 (llm_call_log) - 对齐 native（P6）
+--     记录每次大模型调用的性能指标和费用
+-- =============================================================
+CREATE TABLE IF NOT EXISTS llm_call_log (
+    id                BIGSERIAL       PRIMARY KEY,
+    session_id        VARCHAR(64)     DEFAULT NULL,
+    model_name        VARCHAR(50)     NOT NULL,
+    template_name     VARCHAR(100)    DEFAULT NULL,
+    prompt_tokens     INT             DEFAULT NULL,
+    completion_tokens INT             DEFAULT NULL,
+    total_tokens      INT             DEFAULT NULL,
+    cost              DECIMAL(12, 6)  DEFAULT NULL,
+    latency           BIGINT          DEFAULT NULL,
+    status            VARCHAR(20)     NOT NULL DEFAULT 'success',
+    error_message     VARCHAR(1000)   DEFAULT NULL,
+    request_summary   VARCHAR(200)    DEFAULT NULL,
+    response_summary  VARCHAR(500)    DEFAULT NULL,
+    user_id           BIGINT          DEFAULT NULL,
+    create_time       TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE llm_call_log IS 'LLM 调用日志表 - 记录每次大模型调用的性能指标和费用（P6）';
+COMMENT ON COLUMN llm_call_log.status IS '状态：success/error/timeout';
+
+CREATE INDEX IF NOT EXISTS idx_llm_call_log_session_id ON llm_call_log(session_id);
+CREATE INDEX IF NOT EXISTS idx_llm_call_log_model_name ON llm_call_log(model_name);
+CREATE INDEX IF NOT EXISTS idx_llm_call_log_status ON llm_call_log(status);
+CREATE INDEX IF NOT EXISTS idx_llm_call_log_create_time ON llm_call_log(create_time);
+CREATE INDEX IF NOT EXISTS idx_llm_call_log_user_id ON llm_call_log(user_id);
