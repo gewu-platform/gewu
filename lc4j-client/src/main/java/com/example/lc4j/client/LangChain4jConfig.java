@@ -134,6 +134,7 @@ public class LangChain4jConfig {
                 .timeout(Duration.ofSeconds(300))
                 .maxRetries(2)
                 .maxTokens(config.getMaxTokens() != null ? config.getMaxTokens() : 1024)
+                .defaultRequestParameters(thinkingDisabledParams())
                 .logRequests(true)
                 .logResponses(true)
                 .build();
@@ -156,8 +157,22 @@ public class LangChain4jConfig {
                 .timeout(Duration.ofSeconds(300))
                 .maxRetries(2)
                 .maxTokens(maxTokens)
+                .defaultRequestParameters(thinkingDisabledParams())
                 .logRequests(true)
                 .logResponses(true)
+                .build();
+    }
+
+    /**
+     * 火山 doubao-seed 系列是深度思考模型：同步与流式统一关闭 thinking。
+     * 深度思考模式下模型倾向自己推算而不发起工具请求（P7 Agent 工具链实测），
+     * 且思考内容只走 reasoning_content 字段，langchain4j 拿不到。
+     */
+    private ChatRequestParameters thinkingDisabledParams() {
+        Map<String, Object> custom = new HashMap<>();
+        custom.put("thinking", Map.of("type", "disabled"));
+        return OpenAiChatRequestParameters.builder()
+                .customParameters(custom)
                 .build();
     }
 
@@ -173,7 +188,8 @@ public class LangChain4jConfig {
 
         // 火山 doubao-seed 系列是深度思考模型：思考期间只发 reasoning_content，
         // langchain4j 只回调 content（thinking 内容被丢）→ 前端看起来卡住直到流结束；
-        // 用 customParameters 平铺 thinking:{type:disabled} 关闭思考，恢复逐字流式
+        // 用 customParameters 平铺 thinking:{type:disabled} 关闭思考，恢复逐字流式。
+        // P7 补充：同步 ChatModel 同样关闭 —— 深度思考模式下模型倾向自算不发工具请求。
         Map<String, Object> custom = new HashMap<>();
         custom.put("thinking", Map.of("type", "disabled"));
         ChatRequestParameters params = OpenAiChatRequestParameters.builder()

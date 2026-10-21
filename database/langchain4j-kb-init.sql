@@ -272,3 +272,70 @@ CREATE INDEX IF NOT EXISTS idx_llm_call_log_model_name ON llm_call_log(model_nam
 CREATE INDEX IF NOT EXISTS idx_llm_call_log_status ON llm_call_log(status);
 CREATE INDEX IF NOT EXISTS idx_llm_call_log_create_time ON llm_call_log(create_time);
 CREATE INDEX IF NOT EXISTS idx_llm_call_log_user_id ON llm_call_log(user_id);
+
+-- =============================================================
+-- 11. Agent 定义表 (agent_definition) - 对齐 native（P7）
+--     DB 持久化 + AgentRegistry 运行时缓存
+-- =============================================================
+CREATE TABLE IF NOT EXISTS agent_definition (
+    id            VARCHAR(64)  PRIMARY KEY,
+    name          VARCHAR(100) NOT NULL,
+    description   TEXT,
+    avatar        VARCHAR(500),
+    version       VARCHAR(32)  DEFAULT '1.0.0',
+    type          VARCHAR(32)  DEFAULT 'react',
+    system_prompt TEXT,
+    greeting      TEXT,
+    tool_ids      TEXT,
+    config        TEXT,
+    enabled       SMALLINT     NOT NULL DEFAULT 1,
+    creator_id    BIGINT,
+    create_time   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE agent_definition IS 'Agent 定义表 - 动态 Agent 定义与工具绑定（P7）';
+COMMENT ON COLUMN agent_definition.tool_ids IS '绑定的工具 ID 列表（JSON 数组字符串）';
+COMMENT ON COLUMN agent_definition.config IS 'Agent 配置（JSON 字符串：modelId/maxIterations/temperature）';
+
+CREATE INDEX IF NOT EXISTS idx_agent_definition_enabled ON agent_definition(enabled);
+
+-- 种子数据：4 个内置 Agent（对齐 native agent_tables.sql，精简版）
+INSERT INTO agent_definition (id, name, description, type, system_prompt, greeting, tool_ids, config)
+SELECT 'general-assistant', '通用助手',
+       '全能型 AI 助手，能回答各类问题、进行数学计算、查询时间和时区信息。',
+       'react',
+       '你是一个友好、专业的 AI 助手。你会根据用户的问题自动选择合适的工具来获取信息或执行计算。',
+       '你好！我是通用助手，可以帮你计算数学问题、查询时间信息。',
+       '["calculator","datetime","timezone"]',
+       '{"modelId":null,"maxIterations":5,"temperature":0.7}'
+WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'general-assistant');
+
+INSERT INTO agent_definition (id, name, description, type, system_prompt, greeting, tool_ids, config)
+SELECT 'math-calculator', '数学计算器',
+       '专注于数学计算的专业助手，支持四则运算、幂运算、复杂表达式计算。',
+       'react',
+       '你是一个专业的数学计算助手，准确执行用户给出的数学计算。',
+       '你好！我是数学计算器，可以帮你计算各种数学表达式。',
+       '["calculator"]',
+       '{"modelId":null,"maxIterations":3,"temperature":0.3}'
+WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'math-calculator');
+
+INSERT INTO agent_definition (id, name, description, type, system_prompt, greeting, tool_ids, config)
+SELECT 'time-assistant', '时间管家',
+       '专注于时间和日期查询的助手，可查询当前时间、日期、星期与时区转换。',
+       'react',
+       '你是一个时间管家助手，帮助用户查询和管理时间相关信息。默认时区为 Asia/Shanghai。',
+       '你好！我是时间管家，可以帮你查询时间、日期和时区信息。',
+       '["datetime","timezone"]',
+       '{"modelId":null,"maxIterations":3,"temperature":0.5}'
+WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'time-assistant');
+
+INSERT INTO agent_definition (id, name, description, type, system_prompt, greeting, tool_ids, config)
+SELECT 'smart-qa', '智能问答',
+       '综合性问答助手，结合多种工具为用户提供全面的答案。',
+       'react',
+       '你是一个智能问答助手，理解用户问题意图，选择最合适的工具获取信息并整合答案。',
+       '你好！我是智能问答助手，有问题尽管问我。',
+       '["calculator","datetime","timezone"]',
+       '{"modelId":null,"maxIterations":5,"temperature":0.7}'
+WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'smart-qa');

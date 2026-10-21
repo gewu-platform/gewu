@@ -102,6 +102,13 @@
             <version>5.4.0</version>
         </dependency>
 
+        <!-- Nashorn JS 引擎（JDK15 移除内置，calculator 工具需要） -->
+        <dependency>
+            <groupId>org.openjdk.nashorn</groupId>
+            <artifactId>nashorn-core</artifactId>
+            <version>15.4</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
