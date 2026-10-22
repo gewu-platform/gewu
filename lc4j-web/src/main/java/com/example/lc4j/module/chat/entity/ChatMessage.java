@@ -81,6 +81,11 @@ public class ChatMessage implements Serializable {
     private String requestId;
 
     /**
+     * 智能模式工具调用轨迹（P8a 编排层，JSON 数组字符串：iteration/tool/input/result）
+     */
+    private String toolCalls;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

@@ -28,6 +28,19 @@ public class ChatMessageService extends ServiceImpl<ChatMessageMapper, ChatMessa
     public ChatMessage saveMessage(String sessionId, String role, String content, String contentType,
                                    String imageUrls, String model, Integer inputTokens,
                                    Integer outputTokens, String finishReason, String requestId, Long userId) {
+        return saveMessage(sessionId, role, content, contentType,
+                imageUrls, model, inputTokens,
+                outputTokens, finishReason, requestId, userId, null);
+    }
+
+    /**
+     * 保存消息（P8a 编排层扩展：智能模式带工具调用轨迹 toolCalls JSON）
+     */
+    @Transactional
+    public ChatMessage saveMessage(String sessionId, String role, String content, String contentType,
+                                   String imageUrls, String model, Integer inputTokens,
+                                   Integer outputTokens, String finishReason, String requestId, Long userId,
+                                   String toolCalls) {
         ChatMessage message = new ChatMessage();
         message.setSessionId(sessionId);
         message.setUserId(userId);
@@ -40,6 +53,7 @@ public class ChatMessageService extends ServiceImpl<ChatMessageMapper, ChatMessa
         message.setOutputTokens(outputTokens);
         message.setFinishReason(finishReason);
         message.setRequestId(requestId);
+        message.setToolCalls(toolCalls);
         // create_time 由数据库 DEFAULT CURRENT_TIMESTAMP 维护
 
         chatMessageMapper.insert(message);

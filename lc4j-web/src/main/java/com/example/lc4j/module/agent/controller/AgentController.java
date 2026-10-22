@@ -12,6 +12,7 @@ import com.example.lc4j.module.agent.service.AgentService;
 import com.example.lc4j.module.agent.service.AgentService.AgentIteration;
 import com.example.lc4j.module.agent.service.AgentService.AgentResult;
 import com.example.lc4j.module.agent.tools.ToolRegistry;
+import com.example.lc4j.module.chat.service.ChatSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -51,6 +52,7 @@ public class AgentController {
     private final AgentService agentService;
     private final AgentRegistry agentRegistry;
     private final ToolRegistry toolRegistry;
+    private final ChatSessionService chatSessionService;
 
     // ==================== 同步对话 ====================
 
@@ -119,7 +121,53 @@ public class AgentController {
         // 所有 emitter.send 都发生在控制器 return 之前，会被 Spring 缓存到异步启动后一次性 flush
         // （实测 spread 103ms/161 事件）——挪后台后事件才逐个推送
         reactor.core.Disposable disposable = agentService.chatStream(
-                request.getMessage(), request.getSystemPrompt(), request.getModelId(), request.getAgentId())
+                request.getMessage(), request.getSystemPrompt(), request.getModelId(), request.getAgentId(),
+                request.getSessionId(), request.getUserId(),
+                request.getKnowledgeDocumentIds(), request.getRagTopK())
+            .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
+            .subscribe(
+                event -> {
+                    try {
+                        emitter.send(SseEmitter.event().data(event));
+                    } catch (Exception e) {
+                        log.warn("SSE 发送失败（客户端断开）：{}", e.getMessage());
+                    }
+                },
+                err -> emitter.completeWithError(err),
+                emitter::complete
+            );
+        emitter.onCompletion(disposable::dispose);
+        emitter.onTimeout(disposable::dispose);
+        return emitter;
+    }
+
+    // ==================== 会话式 Agent 流（P8a 方案 D）====================
+
+    /**
+     * 智能模式流式对话：会话记忆 + 工具循环 + 轨迹落库（编排层统一入口）
+     * 与 /chat/stream 区别：sessionId 必填，历史注入 + 回复/工具轨迹落 chat_message
+     */
+    @PostMapping(value = "/chat/stream/session", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chatStreamSession(@RequestBody AgentChatRequest request) {
+        if (request.getMessage() == null || request.getMessage().isBlank()) {
+            throw new IllegalArgumentException("消息内容不能为空");
+        }
+        if (request.getSessionId() == null || request.getSessionId().isBlank()) {
+            throw new IllegalArgumentException("会话模式下 sessionId 不能为空");
+        }
+        log.info("Agent 会话流式请求：sessionId={}, agentId={}, modelId={}, messageLength={}",
+                request.getSessionId(), request.getAgentId(), request.getModelId(), request.getMessage().length());
+
+        // 会话存在性校验（对齐 ConversationService 行为）
+        if (chatSessionService.getSession(request.getSessionId()) == null) {
+            throw new IllegalArgumentException("会话不存在：" + request.getSessionId());
+        }
+
+        SseEmitter emitter = new SseEmitter(300_000L);
+        reactor.core.Disposable disposable = agentService.chatStream(
+                request.getMessage(), request.getSystemPrompt(), request.getModelId(), request.getAgentId(),
+                request.getSessionId(), request.getUserId(),
+                request.getKnowledgeDocumentIds(), request.getRagTopK())
             .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
             .subscribe(
                 event -> {

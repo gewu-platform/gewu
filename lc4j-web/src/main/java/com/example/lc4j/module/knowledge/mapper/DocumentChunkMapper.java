@@ -69,4 +69,26 @@ public interface DocumentChunkMapper extends BaseMapper<DocumentChunk> {
     List<KnowledgeSearchResult> searchSimilar(@Param("queryVec") String queryVec,
                                               @Param("threshold") double threshold,
                                               @Param("topK") int topK);
+
+    /**
+     * P8b：限定单文档的相似度检索（编排层 RAG 注入用）
+     * 与 searchSimilar 同构，增加 document_id 精确过滤
+     */
+    @Select("SELECT dc.id AS chunk_id, " +
+            "       dc.document_id AS document_id, " +
+            "       dc.chunk_index AS chunk_index, " +
+            "       dc.content AS content, " +
+            "       kd.file_name AS document_name, " +
+            "       1 - (dc.embedding <=> CAST(#{queryVec} AS vector)) AS similarity " +
+            "FROM document_chunk dc " +
+            "JOIN knowledge_document kd ON kd.id = dc.document_id " +
+            "WHERE kd.deleted = 0 " +
+            "  AND dc.document_id = #{documentId} " +
+            "  AND (1 - (dc.embedding <=> CAST(#{queryVec} AS vector))) >= #{threshold} " +
+            "ORDER BY dc.embedding <=> CAST(#{queryVec} AS vector) ASC " +
+            "LIMIT #{topK}")
+    List<KnowledgeSearchResult> searchSimilarInDocument(@Param("queryVec") String queryVec,
+                                                        @Param("documentId") Long documentId,
+                                                        @Param("threshold") double threshold,
+                                                        @Param("topK") int topK);
 }

@@ -119,6 +119,22 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeDocumentMapper, K
         }
         return results;
     }
+
+    /**
+     * P8b：限定单文档内的相似度检索（编排层 RAG 注入用）
+     * 复用 search 的嵌入逻辑，SQL 层加 document_id 过滤，阈值放宽至配置值的 60%
+     * （限库内检索命中面更小，阈值过严会导致编排层无米下锅）
+     */
+    public List<KnowledgeSearchResult> searchByDocument(String query, Long documentId, int topK) {
+        log.info("Knowledge search in doc {}: {}", documentId, query);
+        Embedding queryEmbedding = embeddingModel.embed(query).content();
+        String queryVecLiteral = toVectorLiteral(queryEmbedding.vector());
+        double threshold = Math.max(0.1, similarityThreshold * 0.6);
+        List<KnowledgeSearchResult> results =
+                chunkMapper.searchSimilarInDocument(queryVecLiteral, documentId, threshold, topK);
+        log.info("Doc {} search hits: {}", documentId, results.size());
+        return results;
+    }
     @Transactional
     public boolean deleteDocument(Long documentId) {
         // 1. 先获取文档路径（用于物理删除）

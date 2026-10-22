@@ -42,6 +42,15 @@ public class AgentStreamResponse {
     /** 已用工具列表（done） */
     private List<String> toolsUsed;
 
+    /** RAG 检索命中数（rag：>0 命中 / 0 无命中 / -1 检索失败，P8b） */
+    private Integer ragHits;
+
+    /** 累计输入 token（done，P8a 多轮合计） */
+    private Integer inputTokens;
+
+    /** 累计输出 token（done，P8a 多轮合计） */
+    private Integer outputTokens;
+
     public static AgentStreamResponse iteration(int iteration) {
         return AgentStreamResponse.builder().eventType("iteration").iteration(iteration).build();
     }
@@ -76,6 +85,21 @@ public class AgentStreamResponse {
         return AgentStreamResponse.builder().eventType("done")
                 .content(finalAnswer).iteration(iterationCount)
                 .toolsUsed(toolsUsed).modelId(modelId).build();
+    }
+
+    /** RAG 注入结果事件（P8b） */
+    public static AgentStreamResponse rag(int hits) {
+        return AgentStreamResponse.builder().eventType("rag").ragHits(hits).build();
+    }
+
+    /** done 带 token 统计（P8a 会话模式多轮合计） */
+    public static AgentStreamResponse done(String finalAnswer, int iterationCount,
+                                           List<String> toolsUsed, String modelId,
+                                           int inputTokens, int outputTokens) {
+        return AgentStreamResponse.builder().eventType("done")
+                .content(finalAnswer).iteration(iterationCount)
+                .toolsUsed(toolsUsed).modelId(modelId)
+                .inputTokens(inputTokens).outputTokens(outputTokens).build();
     }
 
     /** 心跳事件（审批等待期保活连接） */

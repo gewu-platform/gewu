@@ -2,6 +2,11 @@ package com.example.lc4j.module.agent.service;
 
 import com.example.lc4j.client.LangChain4jConfig;
 import com.example.lc4j.module.agent.definition.AgentDefinition;
+import com.example.lc4j.module.chat.service.ChatMessageService;
+import com.example.lc4j.module.chat.service.ChatSessionService;
+import com.example.lc4j.module.chat.service.TokenUsageService;
+import com.example.lc4j.module.knowledge.dto.KnowledgeSearchResult;
+import com.example.lc4j.module.knowledge.service.KnowledgeBaseService;
 import com.example.lc4j.module.agent.dto.AgentStreamResponse;
 import com.example.lc4j.module.agent.gateway.ToolApprovalGateway;
 import com.example.lc4j.module.agent.registry.AgentRegistry;
@@ -56,6 +61,12 @@ public class AgentService {
     private final AgentRegistry agentRegistry;
     private final LangChain4jConfig langChain4jConfig;
     private final LlmMonitorService llmMonitorService;
+    // P8a 编排层：会话模式落库（chat 链路同源）
+    private final ChatMessageService chatMessageService;
+    private final ChatSessionService chatSessionService;
+    private final TokenUsageService tokenUsageService;
+    // P8b 编排层：RAG 检索注入（盘活 P3/P4 知识库）
+    private final KnowledgeBaseService knowledgeBaseService;
     private final ToolApprovalGateway approvalGateway = new ToolApprovalGateway();
 
     /** 挂起中的审批决策凭证：toolCallId → future（true=批准，false=拒绝／超时） */
@@ -138,7 +149,9 @@ public class AgentService {
      * 工具需审批时推送 approval_required 事件（含 toolCallId），审批通过后可重试
      */
     public Flux<AgentStreamResponse> chatStream(String userMessage, String systemPrompt,
-                                                String modelId, String agentId) {
+                                                String modelId, String agentId,
+                                                String sessionId, Long userId,
+                                                List<Long> knowledgeDocumentIds, Integer ragTopK) {
         String targetModel = resolveModel(modelId);
 
         List<ToolSpecification> specs;
@@ -168,10 +181,77 @@ public class AgentService {
             if (finalSystemPrompt != null && !finalSystemPrompt.isBlank()) {
                 messages.add(SystemMessage.from(finalSystemPrompt));
             }
+
+            // P8b RAG：指定知识文档时检索注入（失败降级继续，不阻断对话）
+            if (knowledgeDocumentIds != null && !knowledgeDocumentIds.isEmpty()) {
+                try {
+                    int topK = (ragTopK != null && ragTopK > 0 && ragTopK <= 10) ? ragTopK : 4;
+                    StringBuilder ragCtx = new StringBuilder();
+                    int hit = 0;
+                    for (Long docId : knowledgeDocumentIds) {
+                        List<KnowledgeSearchResult> results =
+                                knowledgeBaseService.searchByDocument(userMessage, docId, topK);
+                        for (KnowledgeSearchResult r : results) {
+                            if (hit >= topK) break;
+                            ragCtx.append(String.format("[%d] （《%s》 第%d段，相似度%.3f）\n%s\n\n",
+                                    hit + 1, r.getDocumentName(),
+                                    r.getChunkIndex() != null ? r.getChunkIndex() : 0,
+                                    r.getSimilarity() != null ? r.getSimilarity() : 0.0,
+                                    r.getContent()));
+                            hit++;
+                        }
+                        if (hit >= topK) break;
+                    }
+                    if (hit > 0) {
+                        messages.add(SystemMessage.from(
+                                "以下是知识库中与用户问题相关的参考资料（仅作为回答依据，不要虚构未提及的内容）：\n\n"
+                                        + ragCtx));
+                        sink.next(AgentStreamResponse.rag(hit));
+                        log.info("RAG 注入：docs={}, hits={}", knowledgeDocumentIds, hit);
+                    } else {
+                        sink.next(AgentStreamResponse.rag(0));
+                        log.info("RAG 无命中：docs={}", knowledgeDocumentIds);
+                    }
+                } catch (Exception e) {
+                    log.warn("RAG 检索失败（降级继续）：{}", e.getMessage());
+                    sink.next(AgentStreamResponse.rag(-1));
+                }
+            }
+
+            // P8a 会话模式：注入 chat_message 历史（会话记忆），失败降级继续
+            boolean sessionMode = sessionId != null && !sessionId.isBlank();
+            if (sessionMode) {
+                try {
+                    for (com.example.lc4j.module.chat.entity.ChatMessage entity
+                            : chatMessageService.getMessagesBySessionId(sessionId)) {
+                        if ("user".equals(entity.getRole())) {
+                            messages.add(UserMessage.from(entity.getContent()));
+                        } else if ("assistant".equals(entity.getRole())) {
+                            messages.add(AiMessage.from(entity.getContent()));
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("会话历史加载失败（继续无历史执行）：sessionId={}, err={}", sessionId, e.getMessage());
+                }
+            }
             messages.add(UserMessage.from(userMessage));
+
+            // 会话模式：用户消息先落库（历史不含当前消息，对齐 ConversationService 顺序）
+            if (sessionMode) {
+                try {
+                    chatMessageService.saveMessage(sessionId, "user", userMessage, "text", null,
+                            targetModel, userMessage.length() / 4, 0, null,
+                            UUID.randomUUID().toString(), userId);
+                } catch (Exception e) {
+                    log.warn("用户消息落库失败（继续执行）：{}", e.getMessage());
+                }
+            }
 
             AtomicInteger iteration = new AtomicInteger(0);
             List<String> toolsUsed = new ArrayList<>();
+            List<Map<String, Object>> toolTrace = new ArrayList<>();
+            AtomicInteger totalInputTokens = new AtomicInteger(0);
+            AtomicInteger totalOutputTokens = new AtomicInteger(0);
 
             try {
                 for (int i = 0; i < MAX_ITERATIONS; i++) {
@@ -217,9 +297,11 @@ public class AgentService {
                     AiMessage aiMessage = response.aiMessage();
                     int inputTokens = estimateTokens(messages);
                     int outputTokens = aiMessage.text() != null ? aiMessage.text().length() / 4 : 0;
+                    totalInputTokens.addAndGet(inputTokens);
+                    totalOutputTokens.addAndGet(outputTokens);
 
                     llmMonitorService.asyncRecordCall(
-                            null, targetModel, finalAgentId != null ? "agent:" + finalAgentId : "agent-smart",
+                            sessionId, targetModel, finalAgentId != null ? "agent:" + finalAgentId : "agent-smart",
                             inputTokens, outputTokens, latency,
                             "success", null,
                             truncate(userMessage, 200),
@@ -228,7 +310,12 @@ public class AgentService {
                     // 无工具请求 → 最终答案（正文已由 delta 流式推送，不再重复发 thought）
                     if (!aiMessage.hasToolExecutionRequests()) {
                         String text = aiMessage.text() != null ? aiMessage.text() : "";
-                        sink.next(AgentStreamResponse.done(text, iterNum, toolsUsed, targetModel));
+                        if (sessionMode) {
+                            persistAssistantExchange(sessionId, userId, targetModel, text,
+                                    totalInputTokens.get(), totalOutputTokens.get(), toolTrace);
+                        }
+                        sink.next(AgentStreamResponse.done(text, iterNum, toolsUsed, targetModel,
+                                totalInputTokens.get(), totalOutputTokens.get()));
                         sink.complete();
                         return;
                     }
@@ -283,13 +370,28 @@ public class AgentService {
                         result = microCompact(result);
                         sink.next(AgentStreamResponse.toolResult(req.name(), result, iterNum));
                         messages.add(ToolExecutionResultMessage.from(req, result));
+                        // P8a：工具轨迹留档（与推送模型的内容一致）
+                        if (sessionMode) {
+                            Map<String, Object> trace = new HashMap<>();
+                            trace.put("iteration", iterNum);
+                            trace.put("tool", req.name());
+                            trace.put("input", parseArgs(req.arguments()));
+                            trace.put("result", truncate(result, 500));
+                            toolTrace.add(trace);
+                        }
                     }
 
                 }
 
                 // 达到最大迭代
+                String limitText = "已达最大迭代次数（" + MAX_ITERATIONS + "），工具调用中止。";
+                if (sessionMode) {
+                    persistAssistantExchange(sessionId, userId, targetModel, limitText,
+                            totalInputTokens.get(), totalOutputTokens.get(), toolTrace);
+                }
                 sink.next(AgentStreamResponse.done(
-                        "已达最大迭代次数（" + MAX_ITERATIONS + "），工具调用中止。", iteration.get(), toolsUsed, targetModel));
+                        limitText, iteration.get(), toolsUsed, targetModel,
+                        totalInputTokens.get(), totalOutputTokens.get()));
                 sink.complete();
             } catch (Exception e) {
                 log.error("Agent 流式执行异常", e);
@@ -486,6 +588,31 @@ public class AgentService {
     }
 
     // ==================== 辅助 ====================
+
+    /**
+     * P8a 会话模式落库：assistant 回复 + 工具轨迹 + 统计（chat 链路同源）
+     * 失败仅告警不中断流式
+     */
+    private void persistAssistantExchange(String sessionId, Long userId, String model,
+                                          String reply, int inputTokens, int outputTokens,
+                                          List<Map<String, Object>> toolTrace) {
+        try {
+            String toolCallsJson = (toolTrace == null || toolTrace.isEmpty()) ? null
+                    : new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(toolTrace);
+            com.example.lc4j.module.chat.entity.ChatMessage saved = chatMessageService.saveMessage(
+                    sessionId, "assistant", reply, "text", null,
+                    model, inputTokens, outputTokens, "stop",
+                    UUID.randomUUID().toString(), userId, toolCallsJson);
+            chatSessionService.incrementMessageCount(sessionId);
+            chatSessionService.updateTokenStats(sessionId, inputTokens, outputTokens);
+            if (saved.getId() != null) {
+                tokenUsageService.recordUsage(sessionId, saved.getId(), model,
+                        inputTokens, outputTokens, 0);
+            }
+        } catch (Exception e) {
+            log.warn("assistant 回复落库失败（不影响流式输出）：sessionId={}, err={}", sessionId, e.getMessage());
+        }
+    }
 
     private String resolveModel(String modelId) {
         if (modelId != null && !modelId.isBlank()) {

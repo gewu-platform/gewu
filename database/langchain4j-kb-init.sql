@@ -33,6 +33,10 @@ COMMENT ON COLUMN chat_message.role IS '角色 - system:系统/user:用户/assis
 CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_message_user_id ON chat_message(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_message_create_time ON chat_message(create_time);
+
+-- P8a: 智能模式工具调用轨迹留档（编排层：模型+工具+RAG 统一编排）
+ALTER TABLE chat_message ADD COLUMN IF NOT EXISTS tool_calls JSONB DEFAULT NULL;
+COMMENT ON COLUMN chat_message.tool_calls IS '智能模式工具调用轨迹（JSON 数组：iteration/tool/input/result）';
 CREATE INDEX IF NOT EXISTS idx_chat_message_role ON chat_message(role);
 
 -- ==========================================
@@ -339,3 +343,12 @@ SELECT 'smart-qa', '智能问答',
        '["calculator","datetime","timezone"]',
        '{"modelId":null,"maxIterations":5,"temperature":0.7}'
 WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'smart-qa');
+
+-- P8a: varchar -> jsonb IMPLICIT CAST（MyBatis-Plus String 字段写 jsonb 列，对齐 bool_to_smallint 先例，幂等可重跑）
+-- 注意：函数参数必须用 TEXT 而非 VARCHAR —— 若用 VARCHAR，函数体内 v::jsonb 会命中本 CAST 自身造成无限递归（栈溢出）；varchar→text 二进制兼容，cast 函数允许 TEXT 形参
+CREATE OR REPLACE FUNCTION varchar_to_jsonb(v TEXT) RETURNS jsonb AS $fn$
+  SELECT v::jsonb
+$fn$ LANGUAGE SQL IMMUTABLE STRICT;
+
+DROP CAST IF EXISTS (VARCHAR AS jsonb);
+CREATE CAST (VARCHAR AS jsonb) WITH FUNCTION varchar_to_jsonb(v TEXT) AS IMPLICIT;
