@@ -118,55 +118,55 @@ langchain4j-learning/
 - [x] 修复 admin BCrypt hash（native init SQL 原始 hash 与 admin123 不匹配，spring-security-crypto 重新生成并验证）
 
 ### P2 前端 UI 框架对齐（1.5 天）★ 风格分水岭
-- [ ] ant-design-vue 引入；App.vue 整体重写（毛玻璃 header / blob logo / nav-tabs / 状态 pill / 用户下拉）
-- [ ] AuthModal.vue + stores/auth.js + axios 拦截器（token 注入 + 401 → auth-expired → 弹窗）
-- [ ] 路由扩展：/knowledge /prompt /monitor /agent /settings /profile 占位
-- [ ] 验收：与 native 并排对比观感一致；登录弹窗流程走通
+- [x] ant-design-vue 引入；App.vue 整体重写（毛玻璃 header / blob logo / nav-tabs / 状态 pill / 用户下拉）
+- [x] AuthModal.vue + stores/auth.js + axios 拦截器（token 注入 + 401 → auth-expired → 弹窗）
+- [x] 路由扩展：/knowledge /prompt /monitor /agent /settings /profile 占位
+- [x] 验收：与 native 并排对比观感一致；登录弹窗流程走通
 
 ### P3 对话模块对齐（1~1.5 天）
-- [ ] chat 模块化迁入 + 多会话 CRUD + 消息归属 user
-- [ ] **对齐 native API 形态**：POST /message 与 /message/stream（SSE）、session/{id}/stats、mode GET/POST
-- [ ] **多模态对话**（对齐 native）：图文混合消息（content_type=multimodal + imageUrls JSON 存储）；后端先预留字段与 API，图像输入可后置
-- [ ] **system_prompt_config 表**：对话模式绑定系统提示词（native ChatSessionService 在用）
-- [ ] **token_usage 表 + TokenUsageService**：会话/模型级统计与成本核算（与 llm_call_log 埋点同一批实现）
-- [ ] ChatView 重写（会话侧栏 + AntD 消息区）+ SettingsView（模型管理迁入）
-- [ ] 验收：多会话增删切换、流式输出、模型切换即时生效、token_usage/llm_call_log 有记录
+- [x] chat 模块化迁入 + 多会话 CRUD + 消息归属 user
+- [x] **对齐 native API 形态**：POST /message 与 /message/stream（SSE）、session/{id}/stats、mode GET/POST
+- [x] **多模态对话**（对齐 native）：图文混合消息（content_type=multimodal + imageUrls JSON 存储）；后端先预留字段与 API，图像输入可后置
+- [x] **system_prompt_config 表**：对话模式绑定系统提示词（native ChatSessionService 在用）
+- [x] **token_usage 表 + TokenUsageService**：会话/模型级统计与成本核算（与 llm_call_log 埋点同一批实现）
+- [x] ChatView 重写（会话侧栏 + AntD 消息区）+ SettingsView（模型管理迁入）
+- [x] 验收：多会话增删切换、流式输出、模型切换即时生效、token_usage/llm_call_log 有记录
 
 ### P4 知识库 RAG（2~3 天）★ 功能核心
-- [ ] knowledge_document/document_chunk 表（vector 2048）
-- [ ] DocumentService（上传/SHA-256 去重/本地存储）+ @Async Tika 解析 → 段落切片(500/80) → 批量向量化 → pgvector 入库（metadata: docId/fileName/chunkIndex）
-- [ ] EmbeddingStoreContentRetriever + RAG 问答（同步 + SSE，回答带 [来源n]）
-- [ ] KnowledgeView（上传/列表/状态轮询/删除/检索测试面板）
-- [ ] 验收：上传 PDF/MD → SUCCESS → 提问命中文档内容并标注来源；删除同步删向量
+- [x] knowledge_document/document_chunk 表（vector 2048）
+- [x] DocumentService（上传/SHA-256 去重/本地存储）+ @Async Tika 解析 → 段落切片(500/80) → 批量向量化 → pgvector 入库（metadata: docId/fileName/chunkIndex）
+- [x] EmbeddingStoreContentRetriever + RAG 问答（同步 + SSE，回答带 [来源n]）
+- [x] KnowledgeView（上传/列表/状态轮询/删除/检索测试面板）
+- [x] 验收：上传 PDF/MD → SUCCESS → 提问命中文档内容并标注来源；删除同步删向量
 
 ### P5 Prompt 模板管理（1 天）
-- [ ] prompt_template 表（**单表版本制**，对齐 native：UNIQUE(name,version)，含 system_prompt/model/temperature/max_tokens/is_active）
-- [ ] CRUD + 创建自动 version+1 + 执行（LangChain4j PromptTemplate）+ 回滚到指定版本
-- [ ] PromptView（列表/编辑抽屉/变量表单/执行结果/版本历史）
-- [ ] 验收：建模板→填变量执行→改内容产生 v2→回滚 v1
+- [x] prompt_template 表（**单表版本制**，对齐 native：UNIQUE(name,version)，含 system_prompt/model/temperature/max_tokens/is_active）
+- [x] CRUD + 创建自动 version+1 + 执行（LangChain4j PromptTemplate）+ 回滚到指定版本
+- [x] PromptView（列表/编辑抽屉/变量表单/执行结果/版本历史）
+- [x] 验收：建模板→填变量执行→改内容产生 v2→回滚 v1
 
 ### P6 LLM 监控（1 天）
-- [ ] MonitorService（stats / models 排行 / POST /logs 分页筛选 + HourlyStat 小时统计，对齐 native LlmMonitorController）
-- [ ] MonitorView（统计卡片/排行条形/日志表格）
-- [ ] 验收：与 llm_call_log/token_usage 数据一致
+- [x] MonitorService（stats / models 排行 / POST /logs 分页筛选 + HourlyStat 小时统计，对齐 native LlmMonitorController）
+- [x] MonitorView（统计卡片/排行条形/日志表格）
+- [x] 验收：与 llm_call_log/token_usage 数据一致
 
 ### P7 Agent（2~2.5 天）
-- [ ] LangChain4j 原生 Tool Calling（@Tool + AiServices）：Calculator/DateTime/TimeZone/Search 四件套（Search 占位，对齐 native）
-- [ ] **AgentDefinition 动态定义**（对齐 native）：id/name/system_prompt/绑定工具/配置，DB 持久化 + AgentRegistry 运行时注册
-- [ ] **双对话模式**（对齐 native）：/chat/simple（直答）/chat/smart（ReAct 式工具链）/chat/stream + /chat/smart/stream（SSE）
-- [ ] **ToolApprovalGateway 工具审批网关**（对齐 native）：只读工具自动放行、search/自定义 HTTP 工具需审批、未知工具默认拦截；/approval/pending、/approval/approve、/approval/reject 三端点
-- [ ] **AgentDispatchTool**：Agent 间调度工具（主 Agent 可调用其他 Agent 作为工具，对齐 native）
-- [ ] AgentDefinitionController：definitions CRUD + enabled-list + reload + available-tools
-- [ ] SSE 推送「思考→调用工具(参数)→观察→最终回答/需审批」事件链
-- [ ] AgentView（对话 + 工具调用时间线 + 审批弹窗）+ AgentManagementView（定义管理）
-- [ ] 学习笔记：native 文本提示 ReAct vs lc4j 原生 function calling（沉淀 progress.md）
-- [ ] 验收：数学/时间问题触发工具且前端可见调用链；search 触发审批弹窗；自定义 Agent 定义可运行
+- [x] LangChain4j 原生 Tool Calling（@Tool + AiServices）：Calculator/DateTime/TimeZone/Search 四件套（Search 占位，对齐 native）
+- [x] **AgentDefinition 动态定义**（对齐 native）：id/name/system_prompt/绑定工具/配置，DB 持久化 + AgentRegistry 运行时注册
+- [x] **双对话模式**（对齐 native）：/chat/simple（直答）/chat/smart（ReAct 式工具链）/chat/stream + /chat/smart/stream（SSE）
+- [x] **ToolApprovalGateway 工具审批网关**（对齐 native）：只读工具自动放行、search/自定义 HTTP 工具需审批、未知工具默认拦截；/approval/pending、/approval/approve、/approval/reject 三端点
+- [x] **AgentDispatchTool**：Agent 间调度工具（主 Agent 可调用其他 Agent 作为工具，对齐 native）
+- [x] AgentDefinitionController：definitions CRUD + enabled-list + reload + available-tools
+- [x] SSE 推送「思考→调用工具(参数)→观察→最终回答/需审批」事件链
+- [x] AgentView（对话 + 工具调用时间线 + 审批弹窗）+ AgentManagementView（定义管理）
+- [x] 学习笔记：native 文本提示 ReAct vs lc4j 原生 function calling（沉淀 progress.md）
+- [x] 验收：数学/时间问题触发工具且前端可见调用链；search 触发审批弹窗；自定义 Agent 定义可运行
 
 ### P8 收尾（0.5 天）
-- [ ] ~~operation_log~~（可选，不阻塞）
-- [ ] README 重写（功能全景 + 双框架对照表 + 截图）
-- [ ] progress.md 更新 + 简历素材
-- [ ] 全量回归一条龙；最终 commit 前等老板确认（铁律）
+- [x] ~~operation_log~~（可选，不阻塞）
+- [x] README 重写（功能全景 + 双框架对照表 + 截图）
+- [x] progress.md 更新 + 简历素材
+- [x] 全量回归一条龙；最终 commit 前等老板确认（铁律）
 
 ---
 

@@ -1,200 +1,126 @@
-# LangChain4j Learning
+# LangChain4j Learning — Java AI 原生应用
 
-LangChain4j 学习笔记项目 | 基于 1.11.7 | Spring Boot 3.2.4
+基于 **LangChain4j 1.11.7 + Spring Boot 3.2.4 + PostgreSQL/pgvector** 的 AI 原生全栈应用。
+按企业级参考项目 [java-ai-native](https://github.com/) 逐模块对齐开发（P0→P8 九个阶段全部完成），覆盖对话、RAG 知识库、Prompt 管理、LLM 监控、Agent 工具编排五大能力域。
 
-## 📦 技术栈
+> 后端 ~8.6k 行 Java（108 文件，Maven 四模块）| 前端 ~7.5k 行 Vue（22 文件）| PG 11 表 | 50+ REST 端点
 
-| 类别 | 技术 |
-|------|------|
-| **语言** | Java 17 |
-| **框架** | Spring Boot 3.2.4 |
-| **AI 框架** | LangChain4j 1.11.7 |
-| **AI 服务** | 火山引擎方舟（Coding Plan Lite，OpenAI 兼容 `/chat/completions` 端点） |
-| **数据库** | MySQL + MyBatis-Plus 3.5.7（会话持久化） |
-| **工具** | Lombok、Spring WebFlux（SSE 流式） |
-| **前端** | langchain4j-learning-web（Vue 3 + Vite） |
+## ✨ 功能全景
 
-## 🚀 快速开始
-
-### 1. 设置 API Key
-
-```powershell
-$env:VOLC_API_KEY="your-volc-api-key"
-```
-
-### 2. 配置数据库（可选）
-
-```bash
-# 执行建表脚本
-mysql -u root -p < database/langchain4j_learning.sql
-```
-
-> 默认数据库密码：`root/root`（用户/密码），可在 `application.yml` 中修改
-
-### 3. 启动后端
-
-IDEA 中右键 `pom.xml` → **Maven → Reload Project**，然后运行 `LangChain4jLearningApplication`。
-
-后端端口：**8081**
-
-### 4. 启动前端
-
-```bash
-cd D:\projectMenu\langchain4j-learning-web
-pnpm i
-pnpm run dev
-```
-
-前端端口：**3001**，自动代理到后端 8081。
-
-## 🤖 模型管理
-
-### 当前配置
-
-| 模型 ID | 提供商 | 端点/模型 | 说明 |
-|---------|--------|-----------|------|
-| `volc-lite-endpoint` | 火山引擎 | `ep-20260525141015-h6skp` | Coding Plan Lite 推理接入点 |
-
-### 切换模型 API
-
-```bash
-# 查看可用模型
-GET http://localhost:8081/api/chat/models
-
-# 切换模型
-POST http://localhost:8081/api/chat/model
-Body: {"modelId": "volc-lite-endpoint"}
-
-# 查看当前模型
-GET http://localhost:8081/api/chat/model
-```
-
-### 如何添加新模型
-
-在 `application.yml` 的 `langchain4j.models` 下追加：
-
-```yaml
-langchain4j:
-  models:
-    volc-new-endpoint:
-      provider: volcengine
-      baseUrl: https://ark.cn-beijing.volces.com/api/v3
-      apiKey: ${VOLC_API_KEY}
-      modelName: 你的推理接入点ID（ep-***）
-      temperature: 0.7
-      max-tokens: 2048
-      description: "新端点说明"
-```
-
-## 💬 Web API
-
-### 对话接口
-
-| 方法 | 端点 | 说明 |
+| 阶段 | 模块 | 能力 |
 |------|------|------|
-| `GET` | `/api/chat/simple?message=你好` | 简单对话（无记忆） |
-| `GET` | `/api/chat/stream?message=写首诗` | SSE 流式输出 |
-| `POST` | `/api/chat/session` | 带记忆的会话对话 |
-| `DELETE` | `/api/chat/session/{sessionId}` | 清除会话记忆 |
-| `GET` | `/api/chat/role?message=xxx&role=Java老师` | 角色扮演（Prompt 模板） |
+| P0 | 基础设施 | PostgreSQL 切换、火山多模态 Embedding 适配器（lc4j `EmbeddingModel` 接口 + 429 退避） |
+| P1 | 认证 | JWT 登录 + 登录限流（5 次/300s）+ Token 表会话管理 |
+| P2 | 前端框架 | Vue3 + Ant Design Vue 换肤、认证链路、路由守卫 |
+| P3 | 对话模块 | 16 端点：会话 CRUD、SSE 真流式（逐 token）、消息/token 统计落库 |
+| P4 | 知识库 RAG | 文档上传 → 异步分块索引（2048 维）→ pgvector 余弦检索（阈值可配置） |
+| P5 | Prompt 模板 | 版本制模板（创建自动 +1）、变量提取、执行、一键回滚 |
+| P6 | LLM 监控 | `llm_call_log` 全链路埋点、统计卡片、24h 分布、模型排行、日志筛选分页 |
+| P7 | Agent | lc4j 原生 function calling 循环 + 工具审批网关 + **挂起式审批续跑**（同一 SSE 连接）+ Agent 定义 CRUD |
+| P8 | 方案 D 编排层 | ChatView 智能模式（对话统一入口：会话记忆 + 工具 + RAG 注入 + Bing 搜索）、AgentView 管理控制台 |
 
-### Service 层 API
-
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| `POST` | `/api/service/ask` | 通用问答 |
-| `POST` | `/api/service/translate` | AI 翻译 |
-| `POST` | `/api/service/analyze` | 代码分析 |
-| `POST` | `/api/service/session` | 带记忆的会话 |
-
-## 🎯 Token 优化
-
-本项目已做以下优化：
-
-| 优化项 | 说明 |
-|--------|------|
-| **上下文窗口** | `TokenWindowChatMemory.withMaxTokens(4096)` 按 token 总数控制上下文 |
-| **最大回复长度** | `maxTokens: 1024` 限制单次回复不超过 1024 tokens |
-| **超时控制** | 300s 超时 + 2 次重试 |
-
-## 📁 项目结构
+## 🏗️ 架构
 
 ```
 langchain4j-learning/
-├── pom.xml
-├── README.md
-├── LEARNING_GUIDE.md
-├── database/
-│   └── langchain4j_learning.sql          # 数据库建表脚本
-└── src/main/
-    ├── java/com/example/lc4j/
-    │   ├── LangChain4jLearningApplication.java
-    │   ├── config/
-    │   │   ├── LangChain4jConfig.java          # 多模型动态配置
-    │   │   └── MybatisPlusConfig.java          # MyBatis-Plus 配置
-    │   ├── controller/
-    │   │   ├── ChatController.java             # 对话 API（含模型管理）
-    │   │   └── ServiceController.java          # Service 层 API
-    │   ├── service/
-    │   │   ├── AiServiceLayer.java             # AI 服务封装层
-    │   │   └── ChatService.java                # 会话/消息持久化服务
-    │   ├── entity/
-    │   │   ├── ChatSession.java                # 会话实体
-    │   │   └── ChatMessage.java                # 消息实体
-    │   ├── mapper/
-    │   │   ├── ChatSessionMapper.java          # 会话 Mapper
-    │   │   └── ChatMessageMapper.java          # 消息 Mapper
-    │   └── example/
-    │       ├── Day1SyncExample.java            # Day 1: 同步调用
-    │       ├── Day1StreamingExample.java       # Day 1: 流式调用
-    │       ├── Day2PromptTemplateExample.java  # Day 2: Prompt 模板
-    │       ├── Day2ChatMemoryExample.java      # Day 2: Chat Memory
-    │       ├── Day3AiServicesExample.java      # Day 3: AI Services
-    │       ├── Day4ToolCallingExample.java     # Day 4: Tool Calling
-    │       ├── Day5OutputParsingExample.java   # Day 5: 输出解析
-    │       ├── Day5ComprehensiveExample.java   # Day 5: 综合练习
-    │       ├── Day6RagExample.java             # Day 6: RAG 入门
-    │       └── Day7ComprehensiveExample.java   # Day 7: 电商客服实战
-    └── resources/
-        ├── application.yml
-        └── mapper/
-            └── ChatSessionMapper.xml
-
-langchain4j-learning-web/                    # 配套 Web 前端
-├── src/
-│   ├── api/chat.js                          # API 请求封装
-│   ├── stores/chat.js                       # Pinia 状态管理
-│   ├── views/
-│   │   ├── ChatView.vue                     # AI 对话页
-│   │   ├── ExamplesView.vue                 # 学习示例页
-│   │   └── ModelView.vue                    # 模型管理页
-│   ├── App.vue
-│   ├── router/index.js
-│   └── main.js
-└── package.json
+├── lc4j-common/    # 统一响应 R<T> / 业务异常体系
+├── lc4j-security/  # JwtUtil + 认证入口点
+├── lc4j-client/    # LangChain4j 配置 + 火山 Embedding 适配器
+└── lc4j-web/       # 业务主体
+    └── module/
+        ├── auth/       # 登录/注册/登出（限流）
+        ├── user/       # 用户信息
+        ├── chat/       # 会话/消息/SSE 流式/token 统计
+        ├── knowledge/  # 文档上传/索引/向量检索
+        ├── prompt/     # 模板版本制管理
+        ├── monitor/    # LLM 调用埋点与统计
+        └── agent/      # 编排引擎/工具注册/审批网关/定义 CRUD
+            ├── tools/       # calculator / datetime / timezone / search(Bing)
+            ├── gateway/     # 工具审批网关（search 需审批，只读工具放行）
+            ├── registry/    # Agent 定义缓存
+            └── definition/  # AgentConfig / AgentDefinition
 ```
 
-## 📊 LangChain4j vs Spring AI 速查
+**数据库**（PostgreSQL + pgvector，建表脚本唯一入口 `database/langchain4j-kb-init.sql`）：
+`sys_user` / `sys_token` / `chat_session` / `chat_message`（含 `tool_calls` JSONB 工具轨迹）/ `token_usage` / `knowledge_document` / `document_chunk`（vector(2048)）/ `prompt_template` / `llm_call_log` / `agent_definition` / `system_prompt_config`
 
-| 功能 | LangChain4j | Spring AI |
-|------|-------------|-----------|
-| **创建模型** | `OpenAiChatModel.builder()...build()` | 依赖注入 `@Autowired ChatModel` |
-| **简单调用** | `model.chat("你好")` → String | `chatModel.call(new Prompt(...))` → ChatResponse |
-| **高级 API** | `AiServices.create(Interface.class, model)` | `ChatClient.builder(chatModel).build()` |
-| **模板** | `@SystemMessage("{{role}}")` + `@V("role")` | 手动拼接或 PromptTemplate |
-| **记忆** | `TokenWindowChatMemory.withMaxTokens(4096)` | 手动管理 `List<Message>` |
-| **工具** | `@Tool("描述")` 注解 | 实现 `ToolCallback` 接口 |
-| **流式** | SSE `Flux<String>` 回调模式 | `Flux<String>` + `.subscribe()` |
-| **结构化输出** | 直接返回 POJO | `.entity(Class)` |
+## 🚀 快速开始
 
-## 🔗 学习资源
+**环境**：JDK 17、PostgreSQL 16+（需 pgvector 扩展）、Node 18+
 
-- [LangChain4j 官方文档](https://docs.langchain4j.dev/)
-- [LangChain4j GitHub](https://github.com/langchain4j/langchain4j)
-- [LangChain4j 示例](https://github.com/langchain4j/langchain4j-examples)
+```powershell
+# 1. 建库（幂等脚本，含全部 11 表 + 种子数据）
+psql -U postgres -c "CREATE DATABASE langchain4j_kb"
+psql -U postgres -d langchain4j_kb -f database/langchain4j-kb-init.sql
+
+# 2. 配置密钥（环境变量，或直接改 lc4j-web/src/main/resources/application.yml）
+$env:VOLC_API_KEY="你的火山方舟 Key"          # 必须：对话 + Embedding
+$env:BING_SEARCH_API_KEY="你的 Bing Key"      # 可选：Agent search 工具（缺省优雅降级）
+
+# 3. 启动后端（8081）
+mvn install -DskipTests
+mvn spring-boot:run -pl lc4j-web
+
+# 4. 启动前端（3001，代理到 8081）
+cd langchain4j-learning-web
+npm i && npm run dev
+```
+
+默认管理员：`admin / admin123`（种子数据）。
+
+## 🔌 API 一览
+
+统一 `R<T>` 响应包装，除 `/api/auth/**`、`/api/health/**` 外全部需要 JWT。
+
+| 模块 | 前缀 | 核心端点 |
+|------|------|----------|
+| 认证 | `/api/auth` | `login` `register` `logout` |
+| 对话 | `/api/chat` | `session`（CRUD/复用/统计）、`message`、`message/stream`（SSE） |
+| 知识库 | `/api/knowledge` | `upload`（异步索引）、`documents`、`search`（向量检索） |
+| 模板 | `/api/prompt` | `create`/`list`/`{name}`/`execute`/`rollback` |
+| 监控 | `/api/monitor` | `stats`、`logs`（POST 筛选分页）、`models` |
+| Agent | `/api/agent` | `chat/stream`（SSE）、`chat/stream/session`（会话模式）、`tools`、`approval/pending\|approve\|reject`、`definitions/**` |
+| Service | `/api/service` | `ask` `translate` `analyze`（AiServices 声明式示例） |
+
+**Agent SSE 事件契约**：`iteration / delta（逐 token）/ thought / action / tool_result / approval_required / rag / ping / done / error`
+审批闭环：`approval_required` → 前端批准/拒绝 → 工具原地执行 → 下一轮 LLM 流式 → `done`，全程同一 SSE 连接（等待期 15s ping 心跳，3 分钟超时兜底）。
+
+## 💡 技术亮点
+
+### 1. Servlet 栈真流式 SSE
+WebMVC 下返回 `Flux<DTO>` 会被整体缓冲（实测 171 个 delta 挤在 55ms 内一次性到达）。最终方案：`SseEmitter` + `Schedulers.boundedElastic()` 后台执行生产循环，TTFB 104ms、spread 与上游 LLM 逐 token 节奏一致（3.4s）。
+
+### 2. 挂起式工具审批（human-in-the-loop）
+`approval_required` 事件后流**不关闭**：循环线程注册 `CompletableFuture` 挂起等待审批决策（200ms 轮询 + 心跳保活），批准后用原始 `ToolExecutionRequest` 原地执行避免双重执行；拒绝/超时回填观察结果由模型继续生成。
+
+### 3. lc4j 原生 function calling 编排
+`@Tool` 注解 → `ToolSpecification` → 模型自主决策工具调用，`StreamingChatModel.onPartialResponse` 桥接 `CompletableFuture` 实现流式与工具循环两不误（1.11.7 handler 接口实测）。
+
+### 4. RAG 检索链路
+异步索引（上传即返回，后台分块+向量化）→ pgvector 余弦相似度检索 → 编排层按选定文档注入上下文（`rag` 事件回报命中数，失败降级不断流）。多模态 Embedding 对「问题 vs 陈述文」实测相似度仅 0.36~0.45，阈值做成可配置并实测校准。
+
+### 5. 生产级踩坑实录（详见开发日志）
+深度思考模型压制工具调用（`thinking:disabled` 修复）、MyBatis String 写 JSONB 列需 IMPLICIT CAST（CAST 函数参数用 TEXT 防无限递归）、SSE 三层验收法（事件计数/实时性 spread/字段语义）等 40+ 条实测记录。
+
+## 🔍 LangChain4j vs Spring AI 速查（项目实战版）
+
+| 功能 | LangChain4j（本项目） | Spring AI（java-ai-native） |
+|------|----------------------|---------------------------|
+| 模型接入 | `OpenAiChatModel.builder()` + `customParameters` 平铺请求体 | `ChatClient` 自动装配 |
+| 流式 | `StreamingChatResponseHandler` 回调 + CompletableFuture 桥接 | `Flux<String>` 响应式 |
+| 工具 | `@Tool(name=..., value=...)` 注解，框架生成规格并回填结果 | `ToolCallback` 接口 |
+| 记忆 | `MessageWindowChatMemory` / 自管消息列表 | `ChatMemory` 抽象 |
+| RAG | `EmbeddingModel` 接口 + `EmbeddingStore`（pgvector） | `VectorStore` 抽象 |
+| 结构化输出 | AiServices 接口返回 POJO | `.entity(Class)` |
+
+两套框架各完成一个全栈项目，对照笔记沉淀在 `docs/ALIGNMENT-PLAN.md`。
+
+## 📚 学习资源
+
+- [LangChain4j 官方文档](https://docs.langchain4j.dev/) · [GitHub](https://github.com/langchain4j/langchain4j)
 - [火山引擎方舟文档](https://www.volcengine.com/docs/82379)
-- [Spring AI 官方文档](https://docs.spring.io/spring-ai/reference/)
+- [pgvector](https://github.com/pgvector/pgvector)
 
 ---
 
-_版本: 1.11.7 | 更新: 2026-05-25_
+_版本 2.0 | 2026-10-21 | P0-P8 全阶段完成（截图待补）_
