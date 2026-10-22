@@ -85,6 +85,13 @@ langchain4j:
     rag-prod: false      # Day8RagProdExample（默认关闭：依赖 PG 在线，避免启动即执行）
 
 # ==================== MyBatis-Plus 配置 ====================
+  # P8c: Bing Web Search API (real integration; empty api-key -> graceful degrade notice)
+  search:
+    api-key: ${BING_SEARCH_API_KEY:}
+    endpoint: https://api.bing.microsoft.com/v7.0/search
+    count: 5
+    timeout-seconds: 15
+
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*Mapper.xml
   type-aliases-package: com.example.lc4j.entity
