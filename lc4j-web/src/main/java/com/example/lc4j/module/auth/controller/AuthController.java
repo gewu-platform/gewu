@@ -8,6 +8,7 @@ import com.example.lc4j.module.auth.entity.User;
 import com.example.lc4j.module.auth.service.SysTokenService;
 import com.example.lc4j.module.user.dto.UserInfoDTO;
 import com.example.lc4j.module.user.service.UserService;
+import com.example.lc4j.infrastructure.security.AdminAccounts;
 import com.example.lc4j.infrastructure.security.AuthThrottleService;
 import com.example.lc4j.security.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -232,6 +233,7 @@ public class AuthController {
                 .status(user.getStatus())
                 .createTime(user.getCreateTime())
                 .updateTime(user.getUpdateTime())
+                .admin(AdminAccounts.isAdmin(user.getUsername()))
                 .build();
     }
 }

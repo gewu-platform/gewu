@@ -31,4 +31,7 @@ public class UserInfoDTO {
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
+
+    /** P8b 权限管控：是否管理员（Agent 管理/审批可见性用） */
+    private Boolean admin;
 }

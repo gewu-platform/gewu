@@ -252,6 +252,7 @@ public class AgentController {
                         .maxIterations(req.getMaxIterations())
                         .temperature(req.getTemperature())
                         .maxTokens(req.getMaxTokens())
+                        .requireApproval(req.getRequireApproval())
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : true)
                 .build();
@@ -280,6 +281,8 @@ public class AgentController {
                         .maxIterations(req.getMaxIterations())
                         .temperature(req.getTemperature())
                         .maxTokens(req.getMaxTokens())
+                        // P8b 三态语义：前端表单始终显式传 requireApproval，null = 清除回「继承默认」
+                        .requireApproval(req.getRequireApproval())
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : existing.getEnabled())
                 .creatorId(existing.getCreatorId())

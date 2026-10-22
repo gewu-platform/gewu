@@ -1,5 +1,6 @@
 package com.example.lc4j.infrastructure.security;
 
+import com.example.lc4j.infrastructure.security.AdminAccounts;
 import com.example.lc4j.module.auth.entity.User;
 import com.example.lc4j.module.auth.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * 用户详情服务实现（对齐 java-ai-native CustomUserDetailsService）
@@ -51,9 +53,14 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
 
     /**
-     * 获取用户权限
+     * 获取用户权限（P8b：admin 账号授 ROLE_ADMIN，其余 ROLE_USER）
      */
     private Collection<? extends GrantedAuthority> getAuthorities(User user) {
+        if (AdminAccounts.isAdmin(user.getUsername())) {
+            return List.of(
+                    new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("ROLE_USER"));
+        }
         return Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"));
     }
 }

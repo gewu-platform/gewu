@@ -49,4 +49,7 @@ public class AgentDefinitionRequest {
 
     /** 是否启用 */
     private Boolean enabled;
+
+    /** P8b 审批管控：null=继承工具级默认 / true=全部工具需审批 / false=免审批 */
+    private Boolean requireApproval;
 }

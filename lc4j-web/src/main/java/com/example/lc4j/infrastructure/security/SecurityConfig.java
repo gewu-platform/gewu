@@ -75,13 +75,18 @@ public class SecurityConfig {
             )
             // 授权配置（对齐 native：健康检查/公开端点放行，其余全部认证）
             .authorizeHttpRequests(authz -> authz
-                // ASYNC dispatch（SseEmitter 完成后的内部转发）直接放行
-                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+                // ASYNC dispatch（SseEmitter 完成后的内部转发）直接放行；ERROR dispatch（错误页转发）同样放行，
+                // 否则 403 AccessDenied 转发 /error 时被 JWT 过滤器拦成 401，掩盖真实拒绝原因
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/**").permitAll()      // 认证接口无需认证
                 .requestMatchers("/api/health/**").permitAll()    // 健康检查无需认证
                 .requestMatchers("/api/chat/health").permitAll()  // 聊天健康检查无需认证
                 .requestMatchers("/api/agent/health").permitAll() // Agent 健康检查无需认证
                 .requestMatchers("/api/agent/tools").permitAll()  // Agent 工具列表无需认证
+                // P8b 权限管控：Agent 定义管理与工具审批仅管理员（ROLE_ADMIN）
+                .requestMatchers("/api/agent/definitions/**").hasRole("ADMIN")
+                .requestMatchers("/api/agent/approval/approve").hasRole("ADMIN")
+                .requestMatchers("/api/agent/approval/reject").hasRole("ADMIN")
                 .requestMatchers("/actuator/**").hasRole("ACTUATOR") // 执行器需要 ACTUATOR 角色（对齐 native）
                 .anyRequest().authenticated()                     // 其他请求必须认证（含 /api/chat/**、/api/service/**、/api/user/**）
             )

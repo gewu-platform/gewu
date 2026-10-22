@@ -28,4 +28,13 @@ public class AgentConfig {
     /** 最大 token 数 */
     @Builder.Default
     private Integer maxTokens = 4096;
+
+    /**
+     * 工具调用审批策略（P8b 审批管控，页面可配置）：
+     * null = 继承工具级默认（search 等需审批，只读工具放行）
+     * true = 该 Agent 所有工具调用都需审批
+     * false = 该 Agent 免审批（仅限可信 Agent，页面标注风险提示）
+     */
+    @Builder.Default
+    private Boolean requireApproval = null;
 }

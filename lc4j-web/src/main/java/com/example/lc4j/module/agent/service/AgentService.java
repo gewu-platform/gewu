@@ -121,8 +121,10 @@ public class AgentService {
                 ? definition.getConfig().getMaxIterations() : MAX_ITERATIONS;
 
         List<ToolSpecification> specs = agentRegistry.getToolSpecifications(agentId);
+        Boolean requireApproval = definition.getConfig() != null
+                ? definition.getConfig().getRequireApproval() : null;
         return executeLoop(modelId, definition.getSystemPrompt(), userMessage, specs,
-                maxIterations, agentId, null);
+                maxIterations, agentId, null, requireApproval);
     }
 
     /**
@@ -157,6 +159,8 @@ public class AgentService {
         List<ToolSpecification> specs;
         String systemPromptFinal = systemPrompt;
         String effectiveAgentId = agentId;
+        // P8b 审批管控：Agent 级审批策略（null=继承工具级默认）
+        Boolean agentRequireApproval = null;
 
         if (agentId != null && !agentId.isBlank()) {
             AgentDefinition definition = agentRegistry.get(agentId);
@@ -167,6 +171,9 @@ public class AgentService {
             if (systemPromptFinal == null || systemPromptFinal.isBlank()) {
                 systemPromptFinal = definition.getSystemPrompt();
             }
+            if (definition.getConfig() != null) {
+                agentRequireApproval = definition.getConfig().getRequireApproval();
+            }
         } else {
             specs = toolRegistry.getAllSpecifications();
             effectiveAgentId = null;
@@ -175,6 +182,7 @@ public class AgentService {
         List<ToolSpecification> finalSpecs = specs;
         String finalSystemPrompt = systemPromptFinal;
         String finalAgentId = effectiveAgentId;
+        final Boolean finalRequireApproval = agentRequireApproval;
 
         return Flux.create(sink -> {
             List<ChatMessage> messages = new ArrayList<>();
@@ -339,7 +347,8 @@ public class AgentService {
                         var approval = approvalGateway.check(
                                 toolCallId, req.name(),
                                 toolRegistry.getDescription(req.name()),
-                                parseArgs(req.arguments()), finalAgentId, null);
+                                parseArgs(req.arguments()), finalAgentId, null,
+                                finalRequireApproval);
 
                         String result;
                         switch (approval.getStatus()) {
@@ -499,6 +508,12 @@ public class AgentService {
     private AgentResult executeLoop(String modelId, String systemPrompt, String userMessage,
                                     List<ToolSpecification> specs, int maxIterations,
                                     String agentId, String sessionId) {
+        return executeLoop(modelId, systemPrompt, userMessage, specs, maxIterations, agentId, sessionId, null);
+    }
+
+    private AgentResult executeLoop(String modelId, String systemPrompt, String userMessage,
+                                    List<ToolSpecification> specs, int maxIterations,
+                                    String agentId, String sessionId, Boolean agentRequireApproval) {
         List<ChatMessage> messages = new ArrayList<>();
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             messages.add(SystemMessage.from(systemPrompt));
@@ -551,7 +566,7 @@ public class AgentService {
                         : "tc-" + toolCallCounter.incrementAndGet();
                 var approval = approvalGateway.check(toolCallId, req.name(),
                         toolRegistry.getDescription(req.name()),
-                        parseArgs(req.arguments()), agentId, sessionId);
+                        parseArgs(req.arguments()), agentId, sessionId, agentRequireApproval);
 
                 String result;
                 switch (approval.getStatus()) {
