@@ -47,12 +47,6 @@ langchain4j:
       description: "火山 Lite 端点 (ep-h6skp)"
 
     # 保留兼容配置（供 Day1-7 学习示例使用）
-    open-ai:
-      chat-model:
-        base-url: https://ark.cn-beijing.volces.com/api/v3
-        api-key: ${VOLC_API_KEY:REDACTED-VOLC-KEY}
-        model-name: ep-20260525141015-h6skp
-        temperature: 0.7
 
   # Embedding 配置（火山引擎 - 多模态 Doubao-embedding-vision 端点）
   embedding:
@@ -62,27 +56,6 @@ langchain4j:
     dimension: 2048
     # multimodal: 多模态端点逐条串行 | text: 标准 /embeddings 真批量
     mode: multimodal
-
-  # 每日学习示例开关（按需开启）
-  day1:
-    enabled: false       # Day1SyncExample
-    streaming: false     # Day1StreamingExample
-  day2:
-    template: false      # Day2PromptTemplateExample
-    memory: false        # Day2ChatMemoryExample
-  day3:
-    aiservices: false    # Day3AiServicesExample
-  day4:
-    toolcall: false      # Day4ToolCallingExample
-  day5:
-    outputparsing: false # Day5OutputParsingExample
-    comprehensive: false # Day5ComprehensiveExample
-  day6:
-    rag: false           # Day6RagExample
-  day7:
-    comprehensive: false # Day7ComprehensiveExample
-  day8:
-    rag-prod: false      # Day8RagProdExample（默认关闭：依赖 PG 在线，避免启动即执行）
 
 # ==================== MyBatis-Plus 配置 ====================
   # P8c: Bing Web Search API (real integration; empty api-key -> graceful degrade notice)

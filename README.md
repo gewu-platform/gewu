@@ -80,7 +80,6 @@ npm i && npm run dev
 | 模板 | `/api/prompt` | `create`/`list`/`{name}`/`execute`/`rollback` |
 | 监控 | `/api/monitor` | `stats`、`logs`（POST 筛选分页）、`models` |
 | Agent | `/api/agent` | `chat/stream`（SSE）、`chat/stream/session`（会话模式）、`tools`、`approval/pending\|approve\|reject`、`definitions/**` |
-| Service | `/api/service` | `ask` `translate` `analyze`（AiServices 声明式示例） |
 
 **Agent SSE 事件契约**：`iteration / delta（逐 token）/ thought / action / tool_result / approval_required / rag / ping / done / error`
 审批闭环：`approval_required` → 前端批准/拒绝 → 工具原地执行 → 下一轮 LLM 流式 → `done`，全程同一 SSE 连接（等待期 15s ping 心跳，3 分钟超时兜底）。
