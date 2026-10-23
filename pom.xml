@@ -9,8 +9,8 @@
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>LangChain4j Learning</name>
-    <description>LangChain4j 学习平台 - 多模块项目（对齐 java-ai-native 架构）</description>
+    <name>Gewu</name>
+    <description>格物 Gewu - 面向 Java 技术栈企业的开源自部署 Agent 平台</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>

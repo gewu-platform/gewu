@@ -13,7 +13,7 @@
     <artifactId>gewu-web</artifactId>
     <packaging>jar</packaging>
 
-    <name>LC4J Web</name>
+    <name>Gewu Web</name>
     <description>主应用模块：控制器、业务模块（auth/user/chat/knowledge/prompt/monitor/agent）、学习示例</description>
 
     <dependencies>

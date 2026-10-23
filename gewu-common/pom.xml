@@ -13,7 +13,7 @@
     <artifactId>gewu-common</artifactId>
     <packaging>jar</packaging>
 
-    <name>LC4J Common</name>
+    <name>Gewu Common</name>
     <description>通用模块：统一响应、错误码、异常体系、分页、Wrapper 增强</description>
 
     <dependencies>
