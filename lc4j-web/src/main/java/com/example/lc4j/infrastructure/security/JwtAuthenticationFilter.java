@@ -32,15 +32,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
     private final SysTokenService sysTokenService;
 
+    /** 认证动作端点（无需 JWT 解析）；/api/auth/me 不在此列，需注入 Authentication */
+    private boolean isAuthAction(String uri) {
+        return uri.equals("/api/auth/login") || uri.equals("/api/auth/register")
+                || uri.equals("/api/auth/refresh") || uri.equals("/api/auth/logout");
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
         final String requestURI = request.getRequestURI();
 
-        // 只跳过登录/注册与健康检查（公开端点由 SecurityConfig 放行；其余请求统一走 JWT 认证）
-        if (requestURI.startsWith("/api/auth/") ||
-                requestURI.startsWith("/api/health/")) {
+        // 只跳过认证动作端点与健康检查；/api/auth/me 需要解析 token 注入认证信息（公开端点由 SecurityConfig 放行）
+        if (requestURI.startsWith("/api/health/") ||
+                isAuthAction(requestURI)) {
             chain.doFilter(request, response);
             return;
         }
