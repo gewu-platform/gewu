@@ -1,0 +1,11 @@
+target/
+.idea/
+*.iml
+*.log
+logs/
+uploads/
+.env
+.git/
+docs/
+database/migrations/
+node_modules/
