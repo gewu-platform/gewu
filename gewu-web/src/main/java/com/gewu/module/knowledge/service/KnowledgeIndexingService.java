@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import com.gewu.module.setting.service.ModelProviderService;
 
 /**
  * 知识库后台索引服务（对齐 java-ai-native KnowledgeIndexingService）
@@ -30,7 +31,7 @@ public class KnowledgeIndexingService {
     private static final int EMBEDDING_BATCH = 5;
 
     private final DocumentParseService parseService;
-    private final VolcMultiModalEmbeddingModel embeddingModel;
+    private final ModelProviderService modelProviderService;
     private final DocumentChunkMapper chunkMapper;
     private final KnowledgeDocumentMapper documentMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -76,7 +77,7 @@ public class KnowledgeIndexingService {
 
                 // LangChain4j 接口批量向量化（multimodal 模式内部逐条串行，text 模式真批量）
                 List<dev.langchain4j.data.embedding.Embedding> embeddings =
-                        embeddingModel.embedAll(toSegments(batch)).content();
+                        modelProviderService.getEmbeddingModel().embedAll(toSegments(batch)).content();
 
                 for (int j = 0; j < batch.size(); j++) {
                     DocumentChunk chunk = new DocumentChunk();

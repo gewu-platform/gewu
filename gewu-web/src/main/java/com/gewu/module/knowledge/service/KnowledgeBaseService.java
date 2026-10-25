@@ -1,7 +1,7 @@
 package com.gewu.module.knowledge.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.gewu.client.VolcMultiModalEmbeddingModel;
+import com.gewu.module.setting.service.ModelProviderService;
 import com.gewu.module.knowledge.dto.KnowledgeSearchResult;
 import com.gewu.module.knowledge.entity.DocumentChunk;
 import com.gewu.module.knowledge.entity.KnowledgeDocument;
@@ -38,7 +38,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class KnowledgeBaseService extends ServiceImpl<KnowledgeDocumentMapper, KnowledgeDocument> {
 
-    private final VolcMultiModalEmbeddingModel embeddingModel;
+    private final ModelProviderService modelProviderService;
     private final DocumentChunkMapper chunkMapper;
     private final KnowledgeIndexingService indexingService;
 
@@ -103,7 +103,7 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeDocumentMapper, K
 
     public List<KnowledgeSearchResult> search(String query, int topK) {
         log.info("Knowledge search: {}", query);
-        Embedding queryEmbedding = embeddingModel.embed(query).content();
+        Embedding queryEmbedding = modelProviderService.getEmbeddingModel().embed(query).content();
         String queryVecLiteral = toVectorLiteral(queryEmbedding.vector());
         int limit = topK > 0 ? topK : TOP_K;
         List<KnowledgeSearchResult> results =
@@ -127,7 +127,7 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeDocumentMapper, K
      */
     public List<KnowledgeSearchResult> searchByDocument(String query, Long documentId, int topK) {
         log.info("Knowledge search in doc {}: {}", documentId, query);
-        Embedding queryEmbedding = embeddingModel.embed(query).content();
+        Embedding queryEmbedding = modelProviderService.getEmbeddingModel().embed(query).content();
         String queryVecLiteral = toVectorLiteral(queryEmbedding.vector());
         double threshold = Math.max(0.1, similarityThreshold * 0.6);
         List<KnowledgeSearchResult> results =

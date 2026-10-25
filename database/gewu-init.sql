@@ -352,3 +352,42 @@ $fn$ LANGUAGE SQL IMMUTABLE STRICT;
 
 DROP CAST IF EXISTS (VARCHAR AS jsonb);
 CREATE CAST (VARCHAR AS jsonb) WITH FUNCTION varchar_to_jsonb(v TEXT) AS IMPLICIT;
+
+-- ==========================================
+-- 12. 模型服务配置表 (llm_provider) - T3 模型配置中心
+-- ==========================================
+-- 职责：chat / embedding 两类模型服务的统一配置源（网页配置、动态生效）。
+-- 生效链路：本表 → ModelProviderService.refresh() → LangChain4jConfig（chat 合并/激活切换）
+--          与 VolcMultiModalEmbeddingModel 重建（embedding 按配置版本缓存）。
+-- 兼容闸门：切换 embedding 模型后，存量向量按旧模型维度/语义生成，新索引用新模型；
+--          存量文档提示「重建索引」（见 DEPLOY.md FAQ）。
+CREATE TABLE IF NOT EXISTS llm_provider (
+    id            BIGSERIAL       PRIMARY KEY,
+    name          VARCHAR(100)    NOT NULL,
+    provider_type VARCHAR(20)     NOT NULL,
+    vendor        VARCHAR(20)     DEFAULT 'volcengine',
+    base_url      VARCHAR(255)    DEFAULT NULL,
+    api_key_enc   TEXT            DEFAULT NULL,
+    model_name    VARCHAR(255)    DEFAULT NULL,
+    dimension     INT             DEFAULT NULL,
+    mode          VARCHAR(20)     DEFAULT NULL,
+    temperature   DECIMAL(3,2)    DEFAULT 0.70,
+    max_tokens    INT             DEFAULT NULL,
+    description   VARCHAR(500)    DEFAULT NULL,
+    is_active     BOOLEAN         NOT NULL DEFAULT FALSE,
+    create_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_llm_provider_name UNIQUE (name)
+);
+COMMENT ON TABLE llm_provider IS '模型服务配置表 - chat/embedding 模型服务统一配置（T3 模型配置中心）';
+COMMENT ON COLUMN llm_provider.name IS '配置名称（唯一，chat 侧同时作为 LangChain4jConfig.models 的模型 ID）';
+COMMENT ON COLUMN llm_provider.provider_type IS '配置类型 - chat:对话模型/embedding:向量模型';
+COMMENT ON COLUMN llm_provider.vendor IS '服务商 - volcengine/aliyun/openai（OpenAI 兼容端点）';
+COMMENT ON COLUMN llm_provider.api_key_enc IS 'API Key 密文（AES-256-GCM，v1:iv:ct 格式，接口层永不回显明文）';
+COMMENT ON COLUMN llm_provider.dimension IS '向量维度（embedding 专用，实际以模型输出为准）';
+COMMENT ON COLUMN llm_provider.mode IS 'embedding 模式 - multimodal:多模态逐条串行/text:标准批量';
+COMMENT ON COLUMN llm_provider.temperature IS '随机性 0-2（chat 专用）';
+COMMENT ON COLUMN llm_provider.max_tokens IS '最大生成 token 数（chat 专用）';
+COMMENT ON COLUMN llm_provider.is_active IS '是否激活 - 同 provider_type 下至多一条 TRUE；chat 激活行覆盖 yml activeModel';
+CREATE UNIQUE INDEX IF NOT EXISTS uk_llm_provider_active_type
+    ON llm_provider(provider_type) WHERE is_active;

@@ -86,6 +86,15 @@ public class LangChain4jConfig {
     }
 
     /**
+ * 清空模型实例缓存池（T3 配置中心：DB 配置变更后由 ModelProviderService 调用，
+ * 下次 getChatModel/getStreamingChatModel 时按新配置重建。thinking 压制逻辑在 create 内部，不受影响）
+ */
+    public void clearFactoryCaches() {
+        chatClientCache.clear();
+        streamingCache.clear();
+    }
+
+/**
      * 根据模型 ID 获取 ChatModel
      */
     public ChatModel getChatModel(String modelId) {

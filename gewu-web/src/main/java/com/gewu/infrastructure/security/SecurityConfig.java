@@ -84,6 +84,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/agent/health").permitAll() // Agent 健康检查无需认证
                 .requestMatchers("/api/agent/tools").permitAll()  // Agent 工具列表无需认证
                 // P8b 权限管控：Agent 定义管理与工具审批仅管理员（ROLE_ADMIN）
+                .requestMatchers("/api/settings/**").hasRole("ADMIN")
                 .requestMatchers("/api/agent/definitions/**").hasRole("ADMIN")
                 .requestMatchers("/api/agent/approval/approve").hasRole("ADMIN")
                 .requestMatchers("/api/agent/approval/reject").hasRole("ADMIN")

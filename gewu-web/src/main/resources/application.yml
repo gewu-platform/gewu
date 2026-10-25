@@ -41,7 +41,7 @@ langchain4j:
     volc-lite-endpoint:
       provider: volcengine
       baseUrl: https://ark.cn-beijing.volces.com/api/v3
-      apiKey: ${VOLC_API_KEY:REDACTED-VOLC-KEY}
+      apiKey: ${VOLC_API_KEY:}
       modelName: ep-20260525141015-h6skp
       temperature: 0.7
       description: "火山 Lite 端点 (ep-h6skp)"
@@ -51,7 +51,7 @@ langchain4j:
   # Embedding 配置（火山引擎 - 多模态 Doubao-embedding-vision 端点）
   embedding:
     base-url: https://ark.cn-beijing.volces.com/api/v3
-    api-key: ${VOLC_EMBEDDING_API_KEY:REDACTED-VOLC-KEY}
+    api-key: ${VOLC_EMBEDDING_API_KEY:}
     model: ep-20260609173940-d5d4l
     dimension: 2048
     # multimodal: 多模态端点逐条串行 | text: 标准 /embeddings 真批量

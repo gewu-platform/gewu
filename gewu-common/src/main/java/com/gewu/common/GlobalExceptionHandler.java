@@ -30,6 +30,11 @@ public class GlobalExceptionHandler {
     /**
      * 处理参数校验异常
      */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public R<Void> handleIllegalArgument(IllegalArgumentException e) {
+        return R.error(400, e.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public R<Void> handleValidationException(MethodArgumentNotValidException e) {
         StringBuilder errorMsg = new StringBuilder("参数校验失败：");

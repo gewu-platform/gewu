@@ -2,15 +2,17 @@ package com.gewu.client;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * 知识库 Embedding 模型配置（对齐 java-ai-native）
  *
- * 提供 VolcMultiModalEmbeddingModel 单例 Bean，供知识库索引/检索注入使用。
+ * 提供配置属性绑定（供 ModelProviderService 兕底用）。原 @Bean 单例已摘除（T3 配置中心化，
+ * 实例改由 ModelProviderService 版本化缓存管理，支持动态生效）。
+ * 保留 @ConfigurationProperties 绑定能力，字段与方法签名不变。
  * 配置来源：yml 的 langchain4j.embedding 段（base-url / api-key / model / dimension / mode）
  */
+@Deprecated
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "langchain4j.embedding")
@@ -41,8 +43,4 @@ public class EmbeddingModelConfig {
      */
     private String mode = "multimodal";
 
-    @Bean
-    public VolcMultiModalEmbeddingModel embeddingModel() {
-        return new VolcMultiModalEmbeddingModel(baseUrl, apiKey, model, dimension, mode);
-    }
 }
