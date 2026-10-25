@@ -2,7 +2,7 @@
 
 > **文档版本**：draft 2（2026-10-23）——draft1 初版；draft2 增补 §7 功能迭代路线图，并按自查修正（文档版本与产品版本 v1.x 无关）
 > **状态**：已拍板立项，待 v1.0 开发启动
-> **上游**：langchain4j-learning（develop 分支）产品化演进
+> **上游**：gewu（develop 分支）产品化演进
 > **决策记录**：产品名「格物 Gewu」2026-10-23 老板拍板；开源（Apache-2.0）；学习示例模块拆回 learn 分支；图片参考需求（计费预扣/MCP 中台/LangGraph 双端等）降级为远期可选，非必要。
 
 ---
@@ -93,7 +93,7 @@
 
 SaaS 多集群 · 插件市场 · 移动端 · 工作流编排画布 · LangGraph/Python 双端（技术栈保持纯 Java）
 
-## 6. 现状资产映射（langchain4j-learning develop @ `bcb7ace`）
+## 6. 现状资产映射（gewu develop @ `bcb7ace`）
 
 **直接复用（约 60% 现成）**：
 - RAG 全链路：pgvector 0.8.3 + 异步索引 + 阈值可配 + 多模态 embedding（F3 只差格式与测试台）
@@ -195,7 +195,7 @@ SaaS 多集群 · 插件市场 · 移动端 · 工作流编排画布 · LangGrap
 
 | 日期 | 决策 | 依据 |
 |---|---|---|
-| 2026-10-23 | 升级对象选 langchain4j-learning（develop） | Agent 能力更完整（P7/P8 全量），native 保留作 Spring AI 2.0 技术线 |
+| 2026-10-23 | 升级对象选 gewu（develop） | Agent 能力更完整（P7/P8 全量），native 保留作 Spring AI 2.0 技术线 |
 | 2026-10-23 | 图片参考需求降级为非必要 | 老板明确图片仅供参考；核心目标锚定为「部署即用/配置即用/知识即用/二开友好」 |
 | 2026-10-23 | 主交付容器化，开发流程不容器化 | pgvector 企业自装成本高；开发照旧本机 mvn+vite |
 | 2026-10-23 | 产品名「格物 Gewu」，Apache-2.0 开源 | 老板拍板开源；查重干净 + 文化辨识度 |

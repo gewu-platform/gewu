@@ -1,125 +1,123 @@
-# LangChain4j Learning — Java AI 原生应用
+# Gewu — 企业级 AI Agent 平台（Java AI 原生）
 
-基于 **LangChain4j 1.11.7 + Spring Boot 3.2.4 + PostgreSQL/pgvector** 的 AI 原生全栈应用。
-按企业级参考项目 [java-ai-native](https://github.com/) 逐模块对齐开发（P0→P8 九个阶段全部完成），覆盖对话、RAG 知识库、Prompt 管理、LLM 监控、Agent 工具编排五大能力域。
+<p align="center">
+  <a href="#-quick-start"><img src="https://img.shields.io/badge/Java-17-blue" alt="Java 17"></a>
+  <a href="#-quick-start"><img src="https://img.shields.io/badge/Spring%20Boot-3.2-brightgreen" alt="Spring Boot 3.2"></a>
+  <img src="https://img.shields.io/badge/LangChain4j-1.11.7-orange" alt="LangChain4j 1.11.7">
+  <img src="https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-blueviolet" alt="PG16+pgvector">
+  <img src="https://img.shields.io/badge/Vue-3-42b883" alt="Vue 3">
+  <img src="https://img.shields.io/badge/License-Apache--2.0-green" alt="Apache-2.0">
+</p>
 
-> 后端 ~8.6k 行 Java（108 文件，Maven 四模块）| 前端 ~7.5k 行 Vue（22 文件）| PG 11 表 | 50+ REST 端点
+**Gewu（格物）** 是基于 **LangChain4j 1.11.7 + Spring Boot 3.2 + PostgreSQL/pgvector** 的企业级 AI Agent 全栈平台。覆盖对话（真流式 SSE）、RAG 知识库、Prompt 版本管理、LLM 监控与用量报表、Agent 工具编排（审批网关）、模型配置中心六大能力域，开箱即可作为企业 AI 中台底座或二开起点。
 
-## ✨ 功能全景
+> 后端 ~8.8k 行 Java（108 文件，Maven 四模块）| 前端 ~7.8k 行 Vue（22 文件）| PG 12 表 | 50+ REST 端点
 
-| 阶段 | 模块 | 能力 |
-|------|------|------|
-| P0 | 基础设施 | PostgreSQL 切换、火山多模态 Embedding 适配器（lc4j `EmbeddingModel` 接口 + 429 退避） |
-| P1 | 认证 | JWT 登录 + 登录限流（5 次/300s）+ Token 表会话管理 |
-| P2 | 前端框架 | Vue3 + Ant Design Vue 换肤、认证链路、路由守卫 |
-| P3 | 对话模块 | 16 端点：会话 CRUD、SSE 真流式（逐 token）、消息/token 统计落库 |
-| P4 | 知识库 RAG | 文档上传 → 异步分块索引（2048 维）→ pgvector 余弦检索（阈值可配置） |
-| P5 | Prompt 模板 | 版本制模板（创建自动 +1）、变量提取、执行、一键回滚 |
-| P6 | LLM 监控 | `llm_call_log` 全链路埋点、统计卡片、24h 分布、模型排行、日志筛选分页 |
-| P7 | Agent | lc4j 原生 function calling 循环 + 工具审批网关 + **挂起式审批续跑**（同一 SSE 连接）+ Agent 定义 CRUD |
-| P8 | 方案 D 编排层 | ChatView 智能模式（对话统一入口：会话记忆 + 工具 + RAG 注入 + Bing 搜索）、AgentView 管理控制台 |
+[English](#english--快速开始英文) · [API 参考](docs/API.md) · [工具扩展](docs/EXTEND-TOOL.md) · [架构总览](docs/ARCHITECTURE.md) · [部署指南](docs/DEPLOY.md)
+
+---
+
+## ✨ 能力全景
+
+| 能力域 | 说明 |
+|------|------|
+| 💬 **对话** | 16 端点：会话 CRUD、逐 token 真流式 SSE、多模态图片输入、token 统计落库 |
+| 🤖 **Agent 编排** | lc4j 原生 function calling 循环、5 个对话入口、**挂起式审批网关**（human-in-the-loop，同一 SSE 连接续跑）、Agent 定义 CRUD + 3 个预置模板 |
+| 📚 **RAG 知识库** | md/txt/pdf/docx 上传 → 异步分块索引（2048 维）→ pgvector 余弦检索 → Agent 定义级知识库绑定（请求级参数可覆盖） |
+| 🧩 **Prompt 管理** | 版本制模板（创建自动 +1）、变量提取、渲染执行、一键回滚 |
+| 📊 **监控与报表** | `llm_call_log` 全链路埋点、今日统计卡、24h 分布、模型排行；**用量报表三视图**（按天/用户/Agent）+ 用户级每日 token 配额 |
+| ⚙️ **模型配置中心** | chat/embedding 双类型 Provider 动态接入（AES-256-GCM 密文落库）、保存即生效、连通性测试、密钥只进不出 |
 
 ## 🏗️ 架构
 
 ```
-langchain4j-learning/
-├── lc4j-common/    # 统一响应 R<T> / 业务异常体系
-├── lc4j-security/  # JwtUtil + 认证入口点
-├── lc4j-client/    # LangChain4j 配置 + 火山 Embedding 适配器
-└── lc4j-web/       # 业务主体
-    └── module/
-        ├── auth/       # 登录/注册/登出（限流）
-        ├── user/       # 用户信息
-        ├── chat/       # 会话/消息/SSE 流式/token 统计
-        ├── knowledge/  # 文档上传/索引/向量检索
-        ├── prompt/     # 模板版本制管理
-        ├── monitor/    # LLM 调用埋点与统计
-        └── agent/      # 编排引擎/工具注册/审批网关/定义 CRUD
-            ├── tools/       # calculator / datetime / timezone / search(Bing)
-            ├── gateway/     # 工具审批网关（search 需审批，只读工具放行）
-            ├── registry/    # Agent 定义缓存
-            └── definition/  # AgentConfig / AgentDefinition
+gewu/                 gewu-web/
+├── gewu-common/   统一返回/异常/加密   ├── src/views/   页面（Vue3 + AntD）
+├── gewu-client/   LLM 动态工厂        ├── src/api/     模块化 API
+├── gewu-web/      业务模块             └── nginx 托管 dist + /api 反代
+│   ├── auth/user       认证与用户
+│   ├── chat            会话/SSE/多模态
+│   ├── agent           编排/工具/审批
+│   ├── knowledge       RAG
+│   ├── monitor         监控/报表/配额
+│   ├── settings        模型配置中心
+│   └── prompt          模板管理
+└── database/gewu-init.sql  幂等建表（12 表）
 ```
 
-**数据库**（PostgreSQL + pgvector，建表脚本唯一入口 `database/langchain4j-kb-init.sql`）：
-`sys_user` / `sys_token` / `chat_session` / `chat_message`（含 `tool_calls` JSONB 工具轨迹）/ `token_usage` / `knowledge_document` / `document_chunk`（vector(2048)）/ `prompt_template` / `llm_call_log` / `agent_definition` / `system_prompt_config`
+细节见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-**环境**：JDK 17、PostgreSQL 16+（需 pgvector 扩展）、Node 18+
+**前置**：JDK 17、Node 18+、PostgreSQL 16（需 pgvector 扩展）、一个 OpenAI 兼容模型端点（如火山方舟 / DeepSeek / 通义）。
 
-```powershell
-# 1. 建库（幂等脚本，含全部 11 表 + 种子数据）
-psql -U postgres -c "CREATE DATABASE langchain4j_kb"
-psql -U postgres -d langchain4j_kb -f database/langchain4j-kb-init.sql
+```bash
+# 1. 建库（幂等脚本，含全部 12 表 + 种子数据）
+psql -U postgres -d gewu -f database/gewu-init.sql
 
-# 2. 配置密钥（环境变量，或直接改 lc4j-web/src/main/resources/application.yml）
-$env:VOLC_API_KEY="你的火山方舟 Key"          # 必须：对话 + Embedding
-$env:BING_SEARCH_API_KEY="你的 Bing Key"      # 可选：Agent search 工具（缺省优雅降级）
+# 2. 配置模型（环境变量方式，不改代码）
+export VOLC_API_KEY=sk-xxx          # 或其他 OpenAI 兼容端点的 key
+export GEWU_ENCRYPT_KEY=$(openssl rand -base64 48)   # 生产必配：模型密钥加密
 
 # 3. 启动后端（8081）
-mvn install -DskipTests
-mvn spring-boot:run -pl lc4j-web
+mvn spring-boot:run -pl gewu-web
 
 # 4. 启动前端（3001，代理到 8081）
-cd langchain4j-learning-web
-npm i && npm run dev
+cd ../gewu-web && npm i && npm run dev
 ```
 
-默认管理员：`admin / admin123`（种子数据）。
+浏览器打开 `http://localhost:3001`，默认管理员见 `.env.example` 注释。Docker 部署（compose 一键 server+db）见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
 ## 🔌 API 一览
 
-统一 `R<T>` 响应包装，除 `/api/auth/**`、`/api/health/**` 外全部需要 JWT。
+50+ REST 端点，完整契约见 [docs/API.md](docs/API.md)：
 
-| 模块 | 前缀 | 核心端点 |
-|------|------|----------|
-| 认证 | `/api/auth` | `login` `register` `logout` |
-| 对话 | `/api/chat` | `session`（CRUD/复用/统计）、`message`、`message/stream`（SSE） |
-| 知识库 | `/api/knowledge` | `upload`（异步索引）、`documents`、`search`（向量检索） |
-| 模板 | `/api/prompt` | `create`/`list`/`{name}`/`execute`/`rollback` |
-| 监控 | `/api/monitor` | `stats`、`logs`（POST 筛选分页）、`models` |
-| Agent | `/api/agent` | `chat/stream`（SSE）、`chat/stream/session`（会话模式）、`tools`、`approval/pending\|approve\|reject`、`definitions/**` |
-
-**Agent SSE 事件契约**：`iteration / delta（逐 token）/ thought / action / tool_result / approval_required / rag / ping / done / error`
-审批闭环：`approval_required` → 前端批准/拒绝 → 工具原地执行 → 下一轮 LLM 流式 → `done`，全程同一 SSE 连接（等待期 15s ping 心跳，3 分钟超时兜底）。
+| 模块 | 代表端点 |
+|---|---|
+| 对话 | `POST /api/chat/message/stream`（SSE）、`GET /api/chat/models` |
+| Agent | `POST /api/agent/chat/stream`（十类事件契约）、`/api/agent/definitions` CRUD |
+| 知识库 | `POST /api/knowledge/upload`、`GET /api/knowledge/search` |
+| 监控 | `GET /api/monitor/stats`、`GET /api/monitor/usage/report?view=day|user|agent` |
+| 模型配置 | `POST /api/settings/providers`、`POST /api/settings/providers/{id}/test` |
 
 ## 💡 技术亮点
 
-### 1. Servlet 栈真流式 SSE
-WebMVC 下返回 `Flux<DTO>` 会被整体缓冲（实测 171 个 delta 挤在 55ms 内一次性到达）。最终方案：`SseEmitter` + `Schedulers.boundedElastic()` 后台执行生产循环，TTFB 104ms、spread 与上游 LLM 逐 token 节奏一致（3.4s）。
+1. **Servlet 栈真流式 SSE** — SseEmitter 后台线程逐事件推送（实测 161 事件 spread 103ms），Flux 直返会被 MVC 缓冲的坑已内置规避
+2. **挂起式工具审批（human-in-the-loop）** — 审批等待期同一 SSE 连接心跳保活（ping），批准后续跑，无需重建编排
+3. **lc4j 原生 function calling 编排** — ToolRegistry 反射注册（@Component + @Tool 即插即用），定义级工具绑定与审批三态
+4. **RAG 检索链路** — 多格式解析（POI/PDFBox）+ 2048 维 multimodal embedding + 余弦检索 + 阈值可配
+5. **模型配置中心** — DB 优先 + yml 兜底的双源工厂，密钥 AES-256-GCM 落库，保存即生效零重启
 
-### 2. 挂起式工具审批（human-in-the-loop）
-`approval_required` 事件后流**不关闭**：循环线程注册 `CompletableFuture` 挂起等待审批决策（200ms 轮询 + 心跳保活），批准后用原始 `ToolExecutionRequest` 原地执行避免双重执行；拒绝/超时回填观察结果由模型继续生成。
+## 🛡️ 安全基线
 
-### 3. lc4j 原生 function calling 编排
-`@Tool` 注解 → `ToolSpecification` → 模型自主决策工具调用，`StreamingChatModel.onPartialResponse` 桥接 `CompletableFuture` 实现流式与工具循环两不误（1.11.7 handler 接口实测）。
+- JWT + DB 令牌状态校验（登出即失效）
+- 密钥只进不出：接口仅回 `sk-****` 掩码；`GEWU_ENCRYPT_KEY` 未配置时回退开发密钥（**生产必须配置**）
+- 服务端解析用户身份，请求体 userId 不受信任；配额超限 429
 
-### 4. RAG 检索链路
-异步索引（上传即返回，后台分块+向量化）→ pgvector 余弦相似度检索 → 编排层按选定文档注入上下文（`rag` 事件回报命中数，失败降级不断流）。多模态 Embedding 对「问题 vs 陈述文」实测相似度仅 0.36~0.45，阈值做成可配置并实测校准。
+详见 [SECURITY.md](SECURITY.md)。
 
-### 5. 生产级踩坑实录（详见开发日志）
-深度思考模型压制工具调用（`thinking:disabled` 修复）、MyBatis String 写 JSONB 列需 IMPLICIT CAST（CAST 函数参数用 TEXT 防无限递归）、SSE 三层验收法（事件计数/实时性 spread/字段语义）等 40+ 条实测记录。
+## 📖 文档
 
-## 🔍 LangChain4j vs Spring AI 速查（项目实战版）
+| 文档 | 内容 |
+|---|---|
+| [docs/API.md](docs/API.md) | 全量 API 契约 + SSE 事件表 + 配额/模型配置说明 |
+| [docs/EXTEND-TOOL.md](docs/EXTEND-TOOL.md) | 自定义工具开发（3 步接入） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构地图 + 数据流 + 扩展点 |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Docker / nginx 部署 + 离线包 + FAQ |
+| [docs/V1.0-PLAN.md](docs/V1.0-PLAN.md) | 版本规划 |
 
-| 功能 | LangChain4j（本项目） | Spring AI（java-ai-native） |
-|------|----------------------|---------------------------|
-| 模型接入 | `OpenAiChatModel.builder()` + `customParameters` 平铺请求体 | `ChatClient` 自动装配 |
-| 流式 | `StreamingChatResponseHandler` 回调 + CompletableFuture 桥接 | `Flux<String>` 响应式 |
-| 工具 | `@Tool(name=..., value=...)` 注解，框架生成规格并回填结果 | `ToolCallback` 接口 |
-| 记忆 | `MessageWindowChatMemory` / 自管消息列表 | `ChatMemory` 抽象 |
-| RAG | `EmbeddingModel` 接口 + `EmbeddingStore`（pgvector） | `VectorStore` 抽象 |
-| 结构化输出 | AiServices 接口返回 POJO | `.entity(Class)` |
+## English · Quick Start (brief)
 
-两套框架各完成一个全栈项目，对照笔记沉淀在 `docs/ALIGNMENT-PLAN.md`。
+```bash
+psql -U postgres -d gewu -f database/gewu-init.sql
+export VOLC_API_KEY=sk-xxx
+export GEWU_ENCRYPT_KEY=$(openssl rand -base64 48)
+mvn spring-boot:run -pl gewu-web
+cd ../gewu-web && npm i && npm run dev   # http://localhost:3001
+```
 
-## 📚 学习资源
+Gewu is an enterprise-grade AI Agent platform built on LangChain4j 1.11.7 + Spring Boot 3.2 + PostgreSQL/pgvector: streaming chat (SSE), RAG knowledge base (md/txt/pdf/docx → pgvector), versioned prompt management, LLM monitoring with usage reports & token quotas, agent orchestration with human-in-the-loop tool approval, and a dynamic model configuration center (AES-256-GCM encrypted keys). Full docs are in `docs/` (Chinese; API tables are language-neutral).
 
-- [LangChain4j 官方文档](https://docs.langchain4j.dev/) · [GitHub](https://github.com/langchain4j/langchain4j)
-- [火山引擎方舟文档](https://www.volcengine.com/docs/82379)
-- [pgvector](https://github.com/pgvector/pgvector)
+## License
 
----
-
-_版本 2.0 | 2026-10-21 | P0-P8 全阶段完成（截图待补）_
+[Apache-2.0](LICENSE)

@@ -1,4 +1,4 @@
-# langchain4j-learning 对齐 java-ai-native 开发计划（develop 正式版 v2.3）
+# gewu 对齐 java-ai-native 开发计划（develop 正式版 v2.3）
 
 > 创建：2026-10-16 | 分支：**develop**（正式开发）
 > 学习资产已归档至 **learn** 分支（Day1-8 示例 + embedding 适配器验证版 + 设计文档）。
@@ -59,7 +59,7 @@
 ### 后端模块结构（已实施，对齐 java-ai-native 模块划分）
 
 ```
-langchain4j-learning/
+gewu/
 ├── lc4j-common/             # R / ErrorCode / BizException / GlobalExceptionHandler / PageResult
 ├── lc4j-security/           # JwtUtil / JwtAuthenticationEntryPoint
 ├── lc4j-config/             # MybatisPlusConfig
