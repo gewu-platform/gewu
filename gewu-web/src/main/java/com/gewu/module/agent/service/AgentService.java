@@ -173,12 +173,23 @@ public class AgentService {
             }
             if (definition.getConfig() != null) {
                 agentRequireApproval = definition.getConfig().getRequireApproval();
+                // T5 定义级知识库绑定：chat 请求未指定文档时回退使用
+                if ((knowledgeDocumentIds == null || knowledgeDocumentIds.isEmpty())
+                        && definition.getConfig().getKnowledgeDocumentIds() != null) {
+                    knowledgeDocumentIds = definition.getConfig().getKnowledgeDocumentIds();
+                }
+                if (ragTopK == null && definition.getConfig().getRagTopK() != null) {
+                    ragTopK = definition.getConfig().getRagTopK();
+                }
             }
         } else {
             specs = toolRegistry.getAllSpecifications();
             effectiveAgentId = null;
         }
 
+        // T5 参数回退后再捕获为 final（lambda 内引用要求 effectively final）
+        final List<Long> finalKnowledgeIds = knowledgeDocumentIds;
+        final Integer finalRagTopK = ragTopK;
         List<ToolSpecification> finalSpecs = specs;
         String finalSystemPrompt = systemPromptFinal;
         String finalAgentId = effectiveAgentId;
@@ -191,12 +202,12 @@ public class AgentService {
             }
 
             // P8b RAG：指定知识文档时检索注入（失败降级继续，不阻断对话）
-            if (knowledgeDocumentIds != null && !knowledgeDocumentIds.isEmpty()) {
+            if (finalKnowledgeIds != null && !finalKnowledgeIds.isEmpty()) {
                 try {
-                    int topK = (ragTopK != null && ragTopK > 0 && ragTopK <= 10) ? ragTopK : 4;
+                    int topK = (finalRagTopK != null && finalRagTopK > 0 && finalRagTopK <= 10) ? finalRagTopK : 4;
                     StringBuilder ragCtx = new StringBuilder();
                     int hit = 0;
-                    for (Long docId : knowledgeDocumentIds) {
+                    for (Long docId : finalKnowledgeIds) {
                         List<KnowledgeSearchResult> results =
                                 knowledgeBaseService.searchByDocument(userMessage, docId, topK);
                         for (KnowledgeSearchResult r : results) {
@@ -215,10 +226,10 @@ public class AgentService {
                                 "以下是知识库中与用户问题相关的参考资料（仅作为回答依据，不要虚构未提及的内容）：\n\n"
                                         + ragCtx));
                         sink.next(AgentStreamResponse.rag(hit));
-                        log.info("RAG 注入：docs={}, hits={}", knowledgeDocumentIds, hit);
+                        log.info("RAG 注入：docs={}, hits={}", finalKnowledgeIds, hit);
                     } else {
                         sink.next(AgentStreamResponse.rag(0));
-                        log.info("RAG 无命中：docs={}", knowledgeDocumentIds);
+                        log.info("RAG 无命中：docs={}", finalKnowledgeIds);
                     }
                 } catch (Exception e) {
                     log.warn("RAG 检索失败（降级继续）：{}", e.getMessage());

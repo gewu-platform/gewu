@@ -52,4 +52,10 @@ public class AgentDefinitionRequest {
 
     /** P8b 审批管控：null=继承工具级默认 / true=全部工具需审批 / false=免审批 */
     private Boolean requireApproval;
+
+    /** T5 知识库绑定：默认检索文档 ID 列表 */
+    private java.util.List<Long> knowledgeDocumentIds;
+
+    /** T5 默认检索条数 */
+    private Integer ragTopK;
 }

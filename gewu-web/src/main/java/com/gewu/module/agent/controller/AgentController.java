@@ -53,6 +53,7 @@ public class AgentController {
     private final AgentRegistry agentRegistry;
     private final ToolRegistry toolRegistry;
     private final ChatSessionService chatSessionService;
+    private final com.gewu.module.monitor.service.UsageQuotaService usageQuotaService;
 
     // ==================== 同步对话 ====================
 
@@ -64,6 +65,8 @@ public class AgentController {
         if (request.getMessage() == null || request.getMessage().isBlank()) {
             return R.error(400, "消息内容不能为空");
         }
+        // T6 配额闸门：超限 BizException(429)，不做预扣
+        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
 
         AgentResult result;
         if (request.getAgentId() != null && !request.getAgentId().isBlank()) {
@@ -82,6 +85,8 @@ public class AgentController {
         if (request.getMessage() == null || request.getMessage().isBlank()) {
             return R.error(400, "消息内容不能为空");
         }
+        // T6 配额闸门：超限 BizException(429)，不做预扣
+        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
         AgentResult result = agentService.chatSimple(
                 request.getMessage(), request.getSystemPrompt(), request.getModelId());
         return R.success(toResponse(result));
@@ -95,6 +100,8 @@ public class AgentController {
         if (request.getMessage() == null || request.getMessage().isBlank()) {
             return R.error(400, "消息内容不能为空");
         }
+        // T6 配额闸门：超限 BizException(429)，不做预扣
+        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
         AgentResult result = agentService.chatSmart(
                 request.getMessage(), request.getSystemPrompt(), request.getModelId());
         return R.success(toResponse(result));
@@ -111,6 +118,8 @@ public class AgentController {
         if (request.getMessage() == null || request.getMessage().isBlank()) {
             throw new IllegalArgumentException("消息内容不能为空");
         }
+        // T6 配额闸门：超限 BizException(429)，不做预扣
+        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
         log.info("Agent 流式请求：agentId={}, modelId={}, messageLength={}",
                 request.getAgentId(), request.getModelId(), request.getMessage().length());
 
@@ -152,6 +161,8 @@ public class AgentController {
         if (request.getMessage() == null || request.getMessage().isBlank()) {
             throw new IllegalArgumentException("消息内容不能为空");
         }
+        // T6 配额闸门：超限 BizException(429)，不做预扣
+        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
         if (request.getSessionId() == null || request.getSessionId().isBlank()) {
             throw new IllegalArgumentException("会话模式下 sessionId 不能为空");
         }
@@ -253,6 +264,8 @@ public class AgentController {
                         .temperature(req.getTemperature())
                         .maxTokens(req.getMaxTokens())
                         .requireApproval(req.getRequireApproval())
+                        .knowledgeDocumentIds(req.getKnowledgeDocumentIds())
+                        .ragTopK(req.getRagTopK())
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : true)
                 .build();
@@ -283,6 +296,8 @@ public class AgentController {
                         .maxTokens(req.getMaxTokens())
                         // P8b 三态语义：前端表单始终显式传 requireApproval，null = 清除回「继承默认」
                         .requireApproval(req.getRequireApproval())
+                        .knowledgeDocumentIds(req.getKnowledgeDocumentIds())
+                        .ragTopK(req.getRagTopK())
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : existing.getEnabled())
                 .creatorId(existing.getCreatorId())

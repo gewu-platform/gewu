@@ -62,25 +62,6 @@ COMMENT ON COLUMN chat_session.is_deleted IS '是否删除 - 0:未删除/1:已�
 CREATE INDEX IF NOT EXISTS idx_chat_session_create_time ON chat_session(create_time);
 CREATE INDEX IF NOT EXISTS idx_chat_session_update_time ON chat_session(update_time);
 CREATE INDEX IF NOT EXISTS idx_chat_session_user_id ON chat_session(user_id);
-
--- ==========================================
--- 3. 系统提示词配置表 (system_prompt_config) - 对齐 native
--- ==========================================
-CREATE TABLE IF NOT EXISTS system_prompt_config (
-    id               BIGSERIAL       PRIMARY KEY,
-    name             VARCHAR(100)    DEFAULT NULL,
-    role_description TEXT            DEFAULT NULL,
-    model            VARCHAR(50)     DEFAULT NULL,
-    is_default       SMALLINT        DEFAULT 0,
-    is_deleted       SMALLINT        DEFAULT 0,
-    create_time      TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
-    update_time      TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
-);
-COMMENT ON TABLE system_prompt_config IS '系统提示词配置表 - 存储预定义的角色设定和提示词模板';
-
-CREATE INDEX IF NOT EXISTS idx_system_prompt_config_is_default ON system_prompt_config(is_default);
-
--- ==========================================
 -- 4. 用户表 (sys_user) - 对齐 native（P1 认证）
 -- ==========================================
 CREATE TABLE IF NOT EXISTS sys_user (
@@ -352,6 +333,44 @@ $fn$ LANGUAGE SQL IMMUTABLE STRICT;
 
 DROP CAST IF EXISTS (VARCHAR AS jsonb);
 CREATE CAST (VARCHAR AS jsonb) WITH FUNCTION varchar_to_jsonb(v TEXT) AS IMPLICIT;
+
+-- ==========================================
+-- T5: Agent 预置模板（3 个，PRD F4）——不启用（enabled=0），作为创建向导的起点
+-- 模板带 systemPrompt/推荐参数/建议工具；用户从模板创建后自行启用
+-- ==========================================
+
+INSERT INTO agent_definition (id, name, description, type, system_prompt, greeting, tool_ids, config, enabled)
+SELECT 'template-knowledge-qa', '知识库问答（模板）',
+       '基于绑定知识库的精准问答助手：仅依据检索到的资料回答，答案附带来源引用，适合企业知识沉淀场景。',
+       'react',
+       '你是企业知识库问答助手。回答规则：1）优先依据提供的知识库检索结果作答，并在答案末尾标注引用的资料名称；2）检索结果中没有的内容，明确告知「知识库中暂无相关资料」，不要编造；3）回答保持简洁、分点陈述。',
+       '你好！我是知识库问答助手，请先告诉我你想了解什么，我会基于知识库给出有据可查的答案。',
+       '["calculator"]',
+       '{"modelId":null,"maxIterations":4,"temperature":0.3}',
+       0
+WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'template-knowledge-qa');
+
+INSERT INTO agent_definition (id, name, description, type, system_prompt, greeting, tool_ids, config, enabled)
+SELECT 'template-customer-service', '客服接待（模板）',
+       '面向客户咨询场景的接待助手：礼貌规范、先澄清问题再给方案，复杂问题转人工，适合售前售后答疑。',
+       'react',
+       '你是专业的客服接待助手。工作规范：1）语气礼貌友好，使用敬语；2）先理解并复述用户问题，确认理解无误后再给出解答；3）涉及退款、投诉、安全等敏感问题，引导用户联系人工客服，不擅自承诺；4）回答控制在 200 字以内，分点清晰。',
+       '您好，我是智能客服，很高兴为您服务。请描述您遇到的问题，我会尽力帮您解决。',
+       '["calculator","datetime"]',
+       '{"modelId":null,"maxIterations":4,"temperature":0.4}',
+       0
+WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'template-customer-service');
+
+INSERT INTO agent_definition (id, name, description, type, system_prompt, greeting, tool_ids, config, enabled)
+SELECT 'template-general-assistant', '通用助手（模板）',
+       '通用型对话助手起点：均衡的人设与参数，开放工具与知识库绑定，适合从零定制的用户。',
+       'react',
+       '你是一个乐于助人的通用 AI 助手。回答准确、结构清晰；遇到需要计算、查时间的问题主动使用工具；不确定的内容如实告知。',
+       '你好！我是你的通用助手，有什么可以帮你？',
+       '["calculator","datetime","timezone"]',
+       '{"modelId":null,"maxIterations":5,"temperature":0.7}',
+       0
+WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'template-general-assistant');
 
 -- ==========================================
 -- 12. 模型服务配置表 (llm_provider) - T3 模型配置中心

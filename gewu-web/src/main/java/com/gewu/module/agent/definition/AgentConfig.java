@@ -37,4 +37,10 @@ public class AgentConfig {
      */
     @Builder.Default
     private Boolean requireApproval = null;
+
+    /** T5 知识库绑定：定义级默认检索文档 ID 列表（chat 请求未指定时回退使用） */
+    private java.util.List<Long> knowledgeDocumentIds;
+
+    /** T5 定义级默认检索条数（1-10，空 = 编排层默认 4） */
+    private Integer ragTopK;
 }
