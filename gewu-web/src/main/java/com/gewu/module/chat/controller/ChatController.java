@@ -38,6 +38,7 @@ public class ChatController {
     private final ConversationService conversationService;
     private final TokenUsageService tokenUsageService;
     private final LangChain4jConfig langChain4jConfig;
+    private final com.gewu.module.monitor.service.UsageQuotaService usageQuotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ==================== 会话管理 ====================
@@ -83,6 +84,8 @@ public class ChatController {
         if (!StringUtils.hasText(request.getMessage())) {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "消息内容不能为空");
         }
+        // T6 配额闸门：超限 BizException(429)，不做预扣
+        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
 
         // 如果没有会话 ID，创建新会话
         String sessionId = request.getSessionId();
@@ -127,6 +130,8 @@ public class ChatController {
         if (!StringUtils.hasText(request.getMessage())) {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "消息内容不能为空");
         }
+        // T6 配额闸门：超限 BizException(429)，不做预扣
+        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
 
         String sessionId = request.getSessionId();
         if (!StringUtils.hasText(sessionId)) {

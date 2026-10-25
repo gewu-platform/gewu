@@ -5,6 +5,7 @@ import com.gewu.common.R;
 import com.gewu.module.monitor.dto.CallLogQuery;
 import com.gewu.module.monitor.dto.ModelUsageDTO;
 import com.gewu.module.monitor.dto.MonitorStatsDTO;
+import com.gewu.module.monitor.dto.UsageReportDTO;
 import com.gewu.module.monitor.entity.LlmCallLog;
 import com.gewu.module.monitor.service.LlmMonitorService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
@@ -32,6 +34,7 @@ import java.util.Map;
 public class LlmMonitorController {
 
     private final LlmMonitorService llmMonitorService;
+    private final com.gewu.module.monitor.service.UsageReportService usageReportService;
 
     /**
      * 获取监控统计（今日）
@@ -61,5 +64,15 @@ public class LlmMonitorController {
     @GetMapping("/models")
     public R<List<ModelUsageDTO>> getModelRanking() {
         return R.success(llmMonitorService.getModelRanking());
+    }
+
+    /**
+     * T6 用量报表：view=day|user|agent，days 近 N 天（默认 7，上限 90）
+     */
+    @GetMapping("/usage/report")
+    public R<java.util.List<UsageReportDTO>> usageReport(
+            @RequestParam(defaultValue = "day") String view,
+            @RequestParam(required = false) Integer days) {
+        return R.success(usageReportService.report(view, days));
     }
 }
