@@ -29,15 +29,12 @@ jobs:
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ../gewu-web
     steps:
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/gewu-web
-          token: ${{ secrets.WEB_REPO_TOKEN }}
           ref: ${{ github.ref_name }}
+          path: gewu-web
 
       - name: Set up Node 20
         uses: actions/setup-node@v4
@@ -46,7 +43,9 @@ jobs:
           cache: npm
 
       - name: Install
+        working-directory: gewu-web
         run: npm ci
 
       - name: Build
+        working-directory: gewu-web
         run: npm run build
