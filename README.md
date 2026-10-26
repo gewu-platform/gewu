@@ -11,7 +11,7 @@
 
 **Gewu（格物）** 是基于 **LangChain4j 1.11.7 + Spring Boot 3.2 + PostgreSQL/pgvector** 的企业级 AI Agent 全栈平台。覆盖对话（真流式 SSE）、RAG 知识库、Prompt 版本管理、LLM 监控与用量报表、Agent 工具编排（审批网关）、模型配置中心六大能力域，开箱即可作为企业 AI 中台底座或二开起点。
 
-> 后端 ~8.8k 行 Java（108 文件，Maven 四模块）| 前端 ~7.8k 行 Vue（22 文件）| PG 12 表 | 50+ REST 端点
+> 后端 ~8.8k 行 Java（108 文件，Maven 四模块）| [前端](https://github.com/gewu-platform/gewu-web) ~7.8k 行 Vue（22 文件）| PG 12 表 | 50+ REST 端点
 
 [English](#english--快速开始英文) · [API 参考](docs/API.md) · [工具扩展](docs/EXTEND-TOOL.md) · [架构总览](docs/ARCHITECTURE.md) · [部署指南](docs/DEPLOY.md)
 
@@ -49,6 +49,13 @@ gewu/                 gewu-web/
 
 ## 🚀 Quick Start
 
+```bash
+# 0. 获取代码（前后端两仓库）
+git clone https://github.com/gewu-platform/gewu.git
+git clone https://github.com/gewu-platform/gewu-web.git
+```
+
+
 **前置**：JDK 17、Node 18+、PostgreSQL 16（需 pgvector 扩展）、一个 OpenAI 兼容模型端点（如火山方舟 / DeepSeek / 通义）。
 
 ```bash
@@ -63,7 +70,7 @@ export GEWU_ENCRYPT_KEY=$(openssl rand -base64 48)   # 生产必配：模型密�
 mvn spring-boot:run -pl gewu-web
 
 # 4. 启动前端（3001，代理到 8081）
-cd ../gewu-web && npm i && npm run dev
+cd ../gewu-web && npm i && npm run dev   # 前端仓库：github.com/gewu-platform/gewu-web
 ```
 
 浏览器打开 `http://localhost:3001`，默认管理员见 `.env.example` 注释。Docker 部署（compose 一键 server+db）见 [docs/DEPLOY.md](docs/DEPLOY.md)。
