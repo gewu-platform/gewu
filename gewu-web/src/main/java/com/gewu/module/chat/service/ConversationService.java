@@ -70,7 +70,7 @@ public class ConversationService {
      * 发送文本消息并获取回复（支持指定模型）
      */
     @Transactional
-    public String sendTextMessage(String sessionId, String message, String systemPrompt, String modelId) {
+    public String sendTextMessage(String sessionId, String message, String systemPrompt, String modelId, Long userId) {
         if (!StringUtils.hasText(sessionId)) {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话 ID 不能为空");
         }
@@ -117,13 +117,13 @@ public class ConversationService {
             throw new BizException(ErrorCode.API_RESPONSE_ERROR.getCode(), "AI 服务返回空响应");
         }
 
-        return saveExchangeAndStats(sessionId, message, replyText, modelId, latency);
+        return saveExchangeAndStats(sessionId, message, replyText, modelId, latency, userId);
     }
 
     /**
      * 流式发送文本消息（SSE 流式输出）
      */
-    public Flux<String> streamTextMessage(String sessionId, String message, String systemPrompt, String modelId) {
+    public Flux<String> streamTextMessage(String sessionId, String message, String systemPrompt, String modelId, Long userId) {
         if (!StringUtils.hasText(sessionId)) {
             return Flux.error(new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话 ID 不能为空"));
         }
@@ -180,7 +180,7 @@ public class ConversationService {
 
                 if (StringUtils.hasText(replyText)) {
                     try {
-                        saveExchangeAndStats(sessionId, message, replyText, modelId, latency);
+                        saveExchangeAndStats(sessionId, message, replyText, modelId, latency, userId);
                     } catch (Exception e) {
                         log.error("流式完成后保存统计失败：{}", e.getMessage(), e);
                     }
@@ -201,7 +201,7 @@ public class ConversationService {
      * 保存一轮对话（user + assistant 消息）并更新统计
      */
     private String saveExchangeAndStats(String sessionId, String userMessage, String replyText,
-                                        String modelId, long latency) {
+                                        String modelId, long latency, Long userId) {
         int inputTokens = userMessage.length() / 4;
         int outputTokens = replyText.length() / 4;
 
@@ -236,7 +236,7 @@ public class ConversationService {
                 sessionId, modelId, null,
                 inputTokens, outputTokens, latency,
                 "success", null,
-                userMessage, replyText, null
+                userMessage, replyText, userId
         );
 
         log.info("对话完成：sessionId={}, latency={}ms, in={}, out={}",

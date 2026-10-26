@@ -85,7 +85,8 @@ public class ChatController {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "消息内容不能为空");
         }
         // T6 配额闸门：超限 BizException(429)，不做预扣
-        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        usageQuotaService.checkQuota(currentUserId);
 
         // 如果没有会话 ID，创建新会话
         String sessionId = request.getSessionId();
@@ -110,7 +111,7 @@ public class ChatController {
         }
 
         String response = conversationService.sendTextMessage(
-                sessionId, request.getMessage(), request.getSystemPrompt(), model);
+                sessionId, request.getMessage(), request.getSystemPrompt(), model, currentUserId);
 
         log.info("聊天响应成功：sessionId={}, responseLength={}, model={}",
                 sessionId, response.length(), model);
@@ -131,7 +132,8 @@ public class ChatController {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "消息内容不能为空");
         }
         // T6 配额闸门：超限 BizException(429)，不做预扣
-        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        usageQuotaService.checkQuota(currentUserId);
 
         String sessionId = request.getSessionId();
         if (!StringUtils.hasText(sessionId)) {
@@ -156,7 +158,7 @@ public class ChatController {
 
         try {
             conversationService.streamTextMessage(sessionIdFinal, request.getMessage(),
-                            request.getSystemPrompt(), model)
+                            request.getSystemPrompt(), model, currentUserId)
                     .doOnNext(chunk -> {
                         try {
                             if (chunk != null) {

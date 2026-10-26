@@ -66,13 +66,14 @@ public class AgentController {
             return R.error(400, "消息内容不能为空");
         }
         // T6 配额闸门：超限 BizException(429)，不做预扣
-        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        usageQuotaService.checkQuota(currentUserId);
 
         AgentResult result;
         if (request.getAgentId() != null && !request.getAgentId().isBlank()) {
-            result = agentService.chatWithAgent(request.getAgentId(), request.getMessage());
+            result = agentService.chatWithAgent(request.getAgentId(), request.getMessage(), currentUserId);
         } else {
-            result = agentService.chatSmart(request.getMessage(), request.getSystemPrompt(), request.getModelId());
+            result = agentService.chatSmart(request.getMessage(), request.getSystemPrompt(), request.getModelId(), currentUserId);
         }
         return R.success(toResponse(result));
     }
@@ -86,9 +87,10 @@ public class AgentController {
             return R.error(400, "消息内容不能为空");
         }
         // T6 配额闸门：超限 BizException(429)，不做预扣
-        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        usageQuotaService.checkQuota(currentUserId);
         AgentResult result = agentService.chatSimple(
-                request.getMessage(), request.getSystemPrompt(), request.getModelId());
+                request.getMessage(), request.getSystemPrompt(), request.getModelId(), currentUserId);
         return R.success(toResponse(result));
     }
 
@@ -101,9 +103,10 @@ public class AgentController {
             return R.error(400, "消息内容不能为空");
         }
         // T6 配额闸门：超限 BizException(429)，不做预扣
-        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        usageQuotaService.checkQuota(currentUserId);
         AgentResult result = agentService.chatSmart(
-                request.getMessage(), request.getSystemPrompt(), request.getModelId());
+                request.getMessage(), request.getSystemPrompt(), request.getModelId(), currentUserId);
         return R.success(toResponse(result));
     }
 
@@ -119,7 +122,8 @@ public class AgentController {
             throw new IllegalArgumentException("消息内容不能为空");
         }
         // T6 配额闸门：超限 BizException(429)，不做预扣
-        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        usageQuotaService.checkQuota(currentUserId);
         log.info("Agent 流式请求：agentId={}, modelId={}, messageLength={}",
                 request.getAgentId(), request.getModelId(), request.getMessage().length());
 
@@ -131,7 +135,7 @@ public class AgentController {
         // （实测 spread 103ms/161 事件）——挪后台后事件才逐个推送
         reactor.core.Disposable disposable = agentService.chatStream(
                 request.getMessage(), request.getSystemPrompt(), request.getModelId(), request.getAgentId(),
-                request.getSessionId(), request.getUserId(),
+                request.getSessionId(), currentUserId,
                 request.getKnowledgeDocumentIds(), request.getRagTopK())
             .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
             .subscribe(
@@ -162,7 +166,8 @@ public class AgentController {
             throw new IllegalArgumentException("消息内容不能为空");
         }
         // T6 配额闸门：超限 BizException(429)，不做预扣
-        usageQuotaService.checkQuota(usageQuotaService.resolveCurrentUserId());
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        usageQuotaService.checkQuota(currentUserId);
         if (request.getSessionId() == null || request.getSessionId().isBlank()) {
             throw new IllegalArgumentException("会话模式下 sessionId 不能为空");
         }
@@ -177,7 +182,7 @@ public class AgentController {
         SseEmitter emitter = new SseEmitter(300_000L);
         reactor.core.Disposable disposable = agentService.chatStream(
                 request.getMessage(), request.getSystemPrompt(), request.getModelId(), request.getAgentId(),
-                request.getSessionId(), request.getUserId(),
+                request.getSessionId(), currentUserId,
                 request.getKnowledgeDocumentIds(), request.getRagTopK())
             .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
             .subscribe(

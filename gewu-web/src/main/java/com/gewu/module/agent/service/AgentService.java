@@ -85,19 +85,12 @@ public class AgentService {
     private static final int MAX_OBSERVATION_CHARS = 2000;
 
     /**
-     * 初始化：注册内置工具
+     * T7：内置工具注册已迁移至 ToolRegistry.autoScanRegister()
+     * （ApplicationReadyEvent 时自动扫描 tools 包 @Component，对齐 EXTEND-TOOL.md 承诺）
      */
     @PostConstruct
     public void init() {
-        log.info("初始化 Agent 工具注册中心...");
-
-        toolRegistry.register(new com.gewu.module.agent.tools.CalculatorTool());
-        toolRegistry.register(new com.gewu.module.agent.tools.DateTimeTool());
-        toolRegistry.register(new com.gewu.module.agent.tools.TimeZoneTool());
-        toolRegistry.register(new com.gewu.module.agent.tools.SearchTool());
-
-        log.info("Agent 工具注册完成，共 {} 个工具: {}",
-                toolRegistry.getToolNames().size(), toolRegistry.getToolNames());
+        log.info("AgentService 初始化（工具注册由 ToolRegistry 自动扫描完成）");
     }
 
     // ==================== 同步对话 ====================
@@ -105,7 +98,7 @@ public class AgentService {
     /**
      * Agent 对话（同步）：按 agentId 取定义，绑定其工具集跑 function calling 循环
      */
-    public AgentResult chatWithAgent(String agentId, String userMessage) {
+    public AgentResult chatWithAgent(String agentId, String userMessage, Long userId) {
         AgentDefinition definition = agentRegistry.get(agentId);
         if (definition == null) {
             throw new IllegalArgumentException("Agent 不存在: " + agentId);
@@ -124,24 +117,24 @@ public class AgentService {
         Boolean requireApproval = definition.getConfig() != null
                 ? definition.getConfig().getRequireApproval() : null;
         return executeLoop(modelId, definition.getSystemPrompt(), userMessage, specs,
-                maxIterations, agentId, null, requireApproval);
+                maxIterations, agentId, null, requireApproval, userId);
     }
 
     /**
      * 简易对话（直答，不带工具）——/chat/simple
      */
-    public AgentResult chatSimple(String userMessage, String systemPrompt, String modelId) {
+    public AgentResult chatSimple(String userMessage, String systemPrompt, String modelId, Long userId) {
         String targetModel = resolveModel(modelId);
-        return executeLoop(targetModel, systemPrompt, userMessage, List.of(), 1, null, null);
+        return executeLoop(targetModel, systemPrompt, userMessage, List.of(), 1, null, null, userId);
     }
 
     /**
      * 智能对话（同步）：全量工具 + agent 调度能力（演示用，流式是主路径）
      */
-    public AgentResult chatSmart(String userMessage, String systemPrompt, String modelId) {
+    public AgentResult chatSmart(String userMessage, String systemPrompt, String modelId, Long userId) {
         String targetModel = resolveModel(modelId);
         return executeLoop(targetModel, systemPrompt, userMessage,
-                toolRegistry.getAllSpecifications(), MAX_ITERATIONS, null, null);
+                toolRegistry.getAllSpecifications(), MAX_ITERATIONS, null, null, userId);
     }
 
     // ==================== 流式对话 ====================
@@ -324,7 +317,7 @@ public class AgentService {
                             inputTokens, outputTokens, latency,
                             "success", null,
                             truncate(userMessage, 200),
-                            truncate(aiMessage.text(), 500), null);
+                            truncate(aiMessage.text(), 500), userId);
 
                     // 无工具请求 → 最终答案（正文已由 delta 流式推送，不再重复发 thought）
                     if (!aiMessage.hasToolExecutionRequests()) {
@@ -518,13 +511,13 @@ public class AgentService {
 
     private AgentResult executeLoop(String modelId, String systemPrompt, String userMessage,
                                     List<ToolSpecification> specs, int maxIterations,
-                                    String agentId, String sessionId) {
-        return executeLoop(modelId, systemPrompt, userMessage, specs, maxIterations, agentId, sessionId, null);
+                                    String agentId, String sessionId, Long userId) {
+        return executeLoop(modelId, systemPrompt, userMessage, specs, maxIterations, agentId, sessionId, null, userId);
     }
 
     private AgentResult executeLoop(String modelId, String systemPrompt, String userMessage,
                                     List<ToolSpecification> specs, int maxIterations,
-                                    String agentId, String sessionId, Boolean agentRequireApproval) {
+                                    String agentId, String sessionId, Boolean agentRequireApproval, Long userId) {
         List<ChatMessage> messages = new ArrayList<>();
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             messages.add(SystemMessage.from(systemPrompt));
@@ -551,7 +544,7 @@ public class AgentService {
                     estimateTokens(messages),
                     aiMessage.text() != null ? aiMessage.text().length() / 4 : 0,
                     latency, "success", null,
-                    truncate(userMessage, 200), truncate(aiMessage.text(), 500), null);
+                    truncate(userMessage, 200), truncate(aiMessage.text(), 500), userId);
 
             if (!aiMessage.hasToolExecutionRequests()) {
                 return AgentResult.builder()
