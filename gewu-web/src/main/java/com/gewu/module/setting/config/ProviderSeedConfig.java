@@ -46,7 +46,8 @@ public class ProviderSeedConfig {
         return args -> {
             Long count = mapper.selectCount(null);
             if (count > 0) {
-                log.info("[T3] llm_provider 已有 {} 条配置，跳过种子导入", count);
+                log.info("[T3] llm_provider 已有 {} 条配置，跳过种子导入（仍刷新运行时：DB 配置 merge 进工厂）", count);
+                modelProviderService.refresh();
                 return;
             }
             int imported = 0;
