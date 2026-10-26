@@ -5,7 +5,11 @@ import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.service.tool.DefaultToolExecutor;
 import dev.langchain4j.service.tool.ToolExecutor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
+import org.springframework.context.event.EventListener;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,6 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class ToolRegistry {
 
+    @Autowired
+    private ApplicationContext applicationContext;
+
     /** 工具实例（@Tool 注解扫描源） */
     private final Map<String, Object> toolBeans = new ConcurrentHashMap<>();
 
@@ -28,6 +35,24 @@ public class ToolRegistry {
 
     /** 工具执行器（反射调用） */
     private final Map<String, ToolExecutor> executors = new ConcurrentHashMap<>();
+
+    /**
+     * T7：容器就绪后自动扫描 tools 包的 @Component/@Service Bean 并注册。
+     * ApplicationReadyEvent 时机：所有 Bean 已就绪，避免 @PostConstruct 期间
+     * getBeansWithAnnotation 触发 @RestController（元注解含 @Component）连带创建造成循环依赖。
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void autoScanRegister() {
+        int count = 0;
+        for (Object bean : applicationContext.getBeansWithAnnotation(org.springframework.stereotype.Component.class).values()) {
+            if (bean.getClass().getName().startsWith("com.gewu.module.agent.tools.")) {
+                register(bean);
+                count++;
+            }
+        }
+        log.info("工具自动扫描完成：tools 包 {} 个 Bean，当前注册 {} 个工具: {}",
+                count, specs.size(), specs.keySet());
+    }
 
     /**
      * 注册工具实例（扫描全部 @Tool 方法）
