@@ -1,5 +1,8 @@
 # Gewu — 企业级 AI Agent 平台（Java AI 原生）
 
+<p align="center"><img src="docs/banner.png" alt="Gewu" width="680" /></p>
+
+
 <p align="center">
   <a href="#-quick-start"><img src="https://img.shields.io/badge/Java-17-blue" alt="Java 17"></a>
   <a href="#-quick-start"><img src="https://img.shields.io/badge/Spring%20Boot-3.2-brightgreen" alt="Spring Boot 3.2"></a>
