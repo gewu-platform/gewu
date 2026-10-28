@@ -38,6 +38,9 @@ CREATE INDEX IF NOT EXISTS idx_chat_message_create_time ON chat_message(create_t
 ALTER TABLE chat_message ADD COLUMN IF NOT EXISTS tool_calls JSONB DEFAULT NULL;
 COMMENT ON COLUMN chat_message.tool_calls IS '智能模式工具调用轨迹（JSON 数组：iteration/tool/input/result）';
 CREATE INDEX IF NOT EXISTS idx_chat_message_role ON chat_message(role);
+-- T3 上下文压缩标记：1 = 内容已并入会话 context_summary，构建 LLM 上下文时跳过
+ALTER TABLE chat_message ADD COLUMN IF NOT EXISTS compressed SMALLINT DEFAULT 0;
+COMMENT ON COLUMN chat_message.compressed IS '上下文压缩标记 - 1=已并入 context_summary';
 
 -- ==========================================
 -- 2. 聊天会话表 (chat_session) - 对齐 native
@@ -54,9 +57,14 @@ CREATE TABLE IF NOT EXISTS chat_session (
     create_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
     update_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
     is_deleted    SMALLINT        DEFAULT 0,
-    remark        VARCHAR(255)    DEFAULT NULL
+    remark        VARCHAR(255)    DEFAULT NULL,
+    group_name    VARCHAR(100)    DEFAULT NULL,
+    -- T3 上下文压缩：滚动摘要（compact 后旧消息内容并入此处）
+    context_summary TEXT          DEFAULT NULL
 );
 COMMENT ON TABLE chat_session IS '聊天会话表 - 存储 AI 对话会话的基础信息';
+COMMENT ON COLUMN chat_session.group_name IS '会话分组名（NULL=默认组，删组回落）';
+COMMENT ON COLUMN chat_session.context_summary IS '上下文滚动摘要（compact 产物，构建 LLM 上下文时置顶注入）';
 COMMENT ON COLUMN chat_session.is_deleted IS '是否删除 - 0:未删除/1:已删除（软删除）';
 
 CREATE INDEX IF NOT EXISTS idx_chat_session_create_time ON chat_session(create_time);

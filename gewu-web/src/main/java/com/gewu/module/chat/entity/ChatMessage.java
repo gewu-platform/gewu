@@ -93,6 +93,11 @@ public class ChatMessage implements Serializable {
     private String toolCalls;
 
     /**
+     * T3 上下文压缩标记 - 1=内容已并入 context_summary（构建 LLM 上下文时跳过）
+     */
+    private Integer compressed;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

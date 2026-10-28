@@ -96,11 +96,18 @@ public class ConversationService {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话不存在：" + sessionId);
         }
 
-        // 从数据库加载历史消息，构建 LangChain4j 上下文
+        // 从数据库加载历史消息，构建 LangChain4j 上下文（T3：跳过 compressed，摘要置顶）
         List<ChatMessage> historyEntities = messageService.getMessagesBySessionId(sessionId);
         List<dev.langchain4j.data.message.ChatMessage> messages = new ArrayList<>();
 
+        String compactSummary = session.getContextSummary();
+        if (StringUtils.hasText(compactSummary)) {
+            messages.add(SystemMessage.from("【早前对话摘要】\n" + compactSummary));
+        }
         for (ChatMessage entity : historyEntities) {
+            if (entity.getCompressed() != null && entity.getCompressed() == 1) {
+                continue; // T3 上下文压缩：已并入摘要的消息不进 LLM 上下文
+            }
             if ("user".equals(entity.getRole())) {
                 messages.add(UserMessage.from(entity.getContent()));
             } else if ("assistant".equals(entity.getRole())) {
@@ -149,11 +156,18 @@ public class ConversationService {
             return Flux.error(new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话不存在：" + sessionId));
         }
 
-        // 从数据库加载历史消息
+        // 从数据库加载历史消息（T3：跳过 compressed，摘要置顶）
         List<ChatMessage> historyEntities = messageService.getMessagesBySessionId(sessionId);
         List<dev.langchain4j.data.message.ChatMessage> messages = new ArrayList<>();
 
+        String compactSummary = session.getContextSummary();
+        if (StringUtils.hasText(compactSummary)) {
+            messages.add(SystemMessage.from("【早前对话摘要】\n" + compactSummary));
+        }
         for (ChatMessage entity : historyEntities) {
+            if (entity.getCompressed() != null && entity.getCompressed() == 1) {
+                continue; // T3 上下文压缩：已并入摘要的消息不进 LLM 上下文
+            }
             if ("user".equals(entity.getRole())) {
                 messages.add(UserMessage.from(entity.getContent()));
             } else if ("assistant".equals(entity.getRole())) {

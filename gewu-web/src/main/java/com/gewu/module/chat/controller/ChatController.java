@@ -37,6 +37,8 @@ public class ChatController {
 
     private final ConversationService conversationService;
     private final TokenUsageService tokenUsageService;
+    private final com.gewu.module.chat.service.ContextCompactService contextCompactService;
+    private final com.gewu.module.user.service.UserSettingService userSettingService;
     private final LangChain4jConfig langChain4jConfig;
     private final com.gewu.module.monitor.service.UsageQuotaService usageQuotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -299,6 +301,45 @@ public class ChatController {
     @GetMapping("/groups")
     public R<List<String>> listGroups() {
         return R.success(conversationService.listGroups(usageQuotaService.resolveCurrentUserId()));
+    }
+
+    // ==================== T3 上下文压缩（v1.0.1 B3） ====================
+
+    /**
+     * T3.1 手动压缩：旧消息合并进滚动摘要（当前激活 chat 模型执行）
+     */
+    @PostMapping("/session/{sessionId}/compact")
+    public R<java.util.Map<String, Object>> compactSession(
+            @PathVariable String sessionId,
+            @RequestParam(required = false) Integer keepRecent) {
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        conversationService.ensureAccessible(sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
+        java.util.Map<String, Object> conf = contextCompactService.loadUserSettings(currentUserId);
+        int keep = keepRecent != null ? keepRecent : ((Number) conf.get("keepRecent")).intValue();
+        String summary = contextCompactService.compact(sessionId, currentUserId, keep);
+        java.util.Map<String, Object> r = new java.util.HashMap<>();
+        r.put("summary", summary == null ? "" : summary);
+        r.put("keepRecent", keep);
+        return R.success(r);
+    }
+
+    /**
+     * T3.2 读当前用户压缩配置
+     */
+    @GetMapping("/settings/compact")
+    public R<java.util.Map<String, Object>> getCompactSettings() {
+        return R.success(userSettingService.loadSettings(usageQuotaService.resolveCurrentUserId()));
+    }
+
+    /**
+     * T3.3 写当前用户压缩配置（部分更新：只传的字段生效）
+     */
+    @PostMapping("/settings/compact")
+    public R<java.util.Map<String, Object>> saveCompactSettings(
+            @RequestBody java.util.Map<String, Object> patch) {
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        userSettingService.saveSettings(currentUserId, patch);
+        return R.success(userSettingService.loadSettings(currentUserId));
     }
 
     /**

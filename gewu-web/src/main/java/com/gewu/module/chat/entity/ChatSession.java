@@ -83,6 +83,11 @@ public class ChatSession implements Serializable {
     private String groupName;
 
     /**
+     * T3 上下文压缩：滚动摘要（compact 产物；构建 LLM 上下文时置顶注入）
+     */
+    private String contextSummary;
+
+    /**
      * 备注
      */
     private String remark;
