@@ -174,10 +174,9 @@ public class AgentController {
         log.info("Agent 会话流式请求：sessionId={}, agentId={}, modelId={}, messageLength={}",
                 request.getSessionId(), request.getAgentId(), request.getModelId(), request.getMessage().length());
 
-        // 会话存在性校验（对齐 ConversationService 行为）
-        if (chatSessionService.getSession(request.getSessionId()) == null) {
-            throw new IllegalArgumentException("会话不存在：" + request.getSessionId());
-        }
+        // T1.3 会话存在性 + 归属闸门（owner 或 admin）
+        chatSessionService.ensureAccessible(request.getSessionId(),
+                currentUserId, usageQuotaService.isCurrentUserAdmin());
 
         SseEmitter emitter = new SseEmitter(300_000L);
         reactor.core.Disposable disposable = agentService.chatStream(

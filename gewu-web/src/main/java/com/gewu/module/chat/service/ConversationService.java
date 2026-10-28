@@ -52,6 +52,22 @@ public class ConversationService {
      */
     @Transactional
     public String createSession(String mode, String model, String systemPrompt) {
+        return createSession(mode, model, systemPrompt, null);
+    }
+
+    /**
+     * T1.1：创建会话（仅归属，mode/model 走默认）
+     */
+    @Transactional
+    public String createSession(Long userId) {
+        return createSession(null, null, null, userId);
+    }
+
+    /**
+     * T1.1：创建会话（带归属）——userId 来自服务端解析的当前登录账号
+     */
+    @Transactional
+    public String createSession(String mode, String model, String systemPrompt, Long userId) {
         String sessionId = UUID.randomUUID().toString();
 
         if (mode == null) {
@@ -61,8 +77,8 @@ public class ConversationService {
             model = langChain4jConfig.getActiveModel();
         }
 
-        sessionService.createSession(sessionId, mode, model, systemPrompt, null);
-        log.info("创建会话成功：sessionId={}, mode={}, model={}", sessionId, mode, model);
+        sessionService.createSession(sessionId, mode, model, systemPrompt, userId);
+        log.info("创建会话成功：sessionId={}, mode={}, model={}, userId={}", sessionId, mode, model, userId);
         return sessionId;
     }
 
@@ -327,5 +343,30 @@ public class ConversationService {
     @Transactional
     public String getOrCreateSession() {
         return sessionService.getOrCreateSession(null);
+    }
+
+    /**
+     * T1.1：获取或创建会话（带归属）——复用判定限定在当前用户名下
+     */
+    public String getOrCreateSession(Long userId) {
+        return sessionService.getOrCreateSession(userId);
+    }
+
+    /**
+     * T1.2：当前用户的会话列表（替代全库分页拉取）
+     */
+    public List<ChatSession> getSessionsByUserId(Long userId) {
+        return sessionService.getSessionsByUserId(userId);
+    }
+
+    public long getSessionCountByUserId(Long userId) {
+        return sessionService.getSessionCountByUserId(userId);
+    }
+
+    /**
+     * T1.3：会话访问闸门透传
+     */
+    public ChatSession ensureAccessible(String sessionId, Long userId, boolean adminBypass) {
+        return sessionService.ensureAccessible(sessionId, userId, adminBypass);
     }
 }

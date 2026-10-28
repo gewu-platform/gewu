@@ -1,6 +1,8 @@
 package com.gewu.module.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.gewu.common.BizException;
+import com.gewu.common.ErrorCode;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.gewu.module.chat.entity.ChatSession;
 import com.gewu.module.chat.mapper.ChatSessionMapper;
@@ -117,6 +119,33 @@ public class ChatSessionService extends ServiceImpl<ChatSessionMapper, ChatSessi
     public long getSessionCount() {
         return baseMapper.selectCount(new LambdaQueryWrapper<ChatSession>()
                 .eq(ChatSession::getIsDeleted, 0));
+    }
+
+    /**
+     * T1.2：按用户统计会话数量（列表分页配套）
+     */
+    public long getSessionCountByUserId(Long userId) {
+        return baseMapper.selectCount(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getIsDeleted, 0));
+    }
+
+    /**
+     * T1.3 会话访问闸门：存在性 + 归属校验（admin 放行）。
+     * 归属规则：会话 user_id 必须与当前用户一致；user_id 为 NULL 的历史遗留会话仅 admin 可访问。
+     */
+    public ChatSession ensureAccessible(String sessionId, Long userId, boolean adminBypass) {
+        ChatSession session = getSession(sessionId);
+        if (session == null) {
+            throw new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话不存在：" + sessionId);
+        }
+        if (adminBypass) {
+            return session;
+        }
+        if (userId == null || session.getUserId() == null || !userId.equals(session.getUserId())) {
+            throw new BizException(403, "无权访问该会话");
+        }
+        return session;
     }
 
     /**

@@ -48,7 +48,8 @@ public class ChatController {
      */
     @PostMapping("/session")
     public R<SessionResponseDTO> createSession() {
-        String sessionId = conversationService.createSession();
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        String sessionId = conversationService.createSession(currentUserId);
         log.info("会话创建成功：sessionId={}", sessionId);
         return R.success("会话创建成功", SessionResponseDTO.of(sessionId, null));
     }
@@ -58,7 +59,8 @@ public class ChatController {
      */
     @PostMapping("/session/active")
     public R<SessionResponseDTO> getOrCreateSession() {
-        String sessionId = conversationService.getOrCreateSession();
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        String sessionId = conversationService.getOrCreateSession(currentUserId);
         ChatSession session = conversationService.getSession(sessionId);
         SessionResponseDTO response = SessionResponseDTO.of(
                 sessionId, session != null ? session.getMode() : "text",
@@ -210,6 +212,8 @@ public class ChatController {
      */
     @PostMapping("/session/{sessionId}/clear")
     public R<SessionResponseDTO> clearSession(@PathVariable String sessionId) {
+        conversationService.ensureAccessible(sessionId,
+                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
         conversationService.clearSession(sessionId);
         log.info("会话历史已清除：sessionId={}", sessionId);
         return R.success("会话历史已清除", SessionResponseDTO.of(sessionId, null));
@@ -220,6 +224,8 @@ public class ChatController {
      */
     @DeleteMapping("/session/{sessionId}")
     public R<SessionResponseDTO> deleteSession(@PathVariable String sessionId) {
+        conversationService.ensureAccessible(sessionId,
+                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
         conversationService.deleteSession(sessionId);
         log.info("会话已删除：sessionId={}", sessionId);
         return R.success("会话已删除", SessionResponseDTO.of(sessionId, null));
@@ -232,8 +238,9 @@ public class ChatController {
     public R<SessionListResponseDTO> getSessions(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
-        List<ChatSession> sessions = conversationService.getSessionsByPage(page, size);
-        long total = conversationService.getSessionCount();
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        List<ChatSession> sessions = conversationService.getSessionsByUserId(currentUserId);
+        long total = conversationService.getSessionCountByUserId(currentUserId);
         return R.success(SessionListResponseDTO.of(sessions, (int) total, page, size));
     }
 
@@ -242,10 +249,9 @@ public class ChatController {
      */
     @GetMapping("/session/{sessionId}")
     public R<ChatSession> getSession(@PathVariable String sessionId) {
-        ChatSession session = conversationService.getSession(sessionId);
-        if (session == null) {
-            throw new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话不存在：" + sessionId);
-        }
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        ChatSession session = conversationService.ensureAccessible(
+                sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
         return R.success(session);
     }
 
@@ -254,6 +260,8 @@ public class ChatController {
      */
     @GetMapping("/session/{sessionId}/messages")
     public R<MessageListResponseDTO> getMessages(@PathVariable String sessionId) {
+        conversationService.ensureAccessible(sessionId,
+                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
         List<com.gewu.module.chat.entity.ChatMessage> messages =
                 conversationService.getSessionMessages(sessionId);
         return R.success(MessageListResponseDTO.of(messages));

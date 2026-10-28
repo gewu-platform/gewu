@@ -3,7 +3,9 @@ package com.gewu.module.monitor.service;
 import com.gewu.module.monitor.mapper.LlmCallLogMapper;
 import com.gewu.module.auth.entity.User;
 import com.gewu.module.auth.mapper.UserMapper;
+import com.gewu.infrastructure.security.AdminAccounts;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +73,24 @@ public class UsageQuotaService {
         }
         User user = userMapper.findByUsername(username);
         return user != null ? user.getId() : null;
+    }
+
+    /**
+     * T1.3：当前登录账号是否管理员（AdminAccounts 名单制，与 ROLE_ADMIN 授予同源）
+     */
+    public boolean isCurrentUserAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return false;
+        }
+        Object principal = auth.getPrincipal();
+        String username = null;
+        if (principal instanceof UserDetails ud) {
+            username = ud.getUsername();
+        } else if (principal instanceof String s && !"anonymousUser".equals(s)) {
+            username = s;
+        }
+        return AdminAccounts.isAdmin(username);
     }
 }
 
