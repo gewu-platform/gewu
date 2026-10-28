@@ -77,4 +77,16 @@ public class ChatMessageService extends ServiceImpl<ChatMessageMapper, ChatMessa
         chatMessageMapper.deleteBySessionId(sessionId);
         log.info("删除会话消息：sessionId={}", sessionId);
     }
+
+    /**
+     * T3.1 /clear 命令：清空历史后重置压缩标记（新对话从零开始）
+     */
+    public void markAllCompressed(String sessionId) {
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ChatMessage> uw =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ChatMessage>()
+                        .eq(ChatMessage::getSessionId, sessionId)
+                        .set(ChatMessage::getCompressed, 0);
+        this.update(uw);
+        log.info("重置会话压缩标记：sessionId={}", sessionId);
+    }
 }

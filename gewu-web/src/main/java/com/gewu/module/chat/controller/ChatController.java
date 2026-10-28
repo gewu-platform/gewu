@@ -39,6 +39,7 @@ public class ChatController {
     private final TokenUsageService tokenUsageService;
     private final com.gewu.module.chat.service.ContextCompactService contextCompactService;
     private final com.gewu.module.user.service.UserSettingService userSettingService;
+    private final com.gewu.module.chat.service.CommandService commandService;
     private final LangChain4jConfig langChain4jConfig;
     private final com.gewu.module.monitor.service.UsageQuotaService usageQuotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -108,6 +109,9 @@ public class ChatController {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "未知模型 ID: " + model);
         }
 
+        // T3.4 自动压缩：发送前估算超阈值则先压缩（失败不阻断对话）
+        autoCompactIfNeeded(sessionId, currentUserId);
+
         // 多模态预留：P3 先落 API 契约，图像输入后置（对齐计划决策 12）
         if (request.getUseMultimodal() != null && request.getUseMultimodal()) {
             log.info("多模态模式预留中，本次按文本模式处理（imageUrls 已接收 {} 条）",
@@ -152,6 +156,9 @@ public class ChatController {
         if (!langChain4jConfig.getModels().containsKey(model)) {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "未知模型 ID: " + model);
         }
+
+        // T3.4 自动压缩：发送前估算超阈值则先压缩（失败不阻断对话）
+        autoCompactIfNeeded(sessionIdFinal, currentUserId);
 
         // SSE emitter，超时 5 分钟（对齐 native）
         SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
@@ -341,6 +348,49 @@ public class ChatController {
         userSettingService.saveSettings(currentUserId, patch);
         return R.success(userSettingService.loadSettings(currentUserId));
     }
+
+    // ==================== T3.1 斜杠命令（v1.0.1 B4） ====================
+
+    /**
+     * 命令清单（前端 / 补全提示用）
+     */
+    @GetMapping("/commands")
+    public R<List<com.gewu.module.chat.service.CommandService.CommandSpec>> listCommands() {
+        return R.success(commandService.listCommands());
+    }
+
+    /**
+     * 流式执行斜杠命令（SSE：chunk 逐步过程 + done 收尾；/reset 的 done 带 newSessionId）
+     */
+    @PostMapping(value = "/command/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public reactor.core.publisher.Flux<String> executeCommand(@RequestBody ChatRequestDTO request) {
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        String sessionId = request.getSessionId();
+        if (!StringUtils.hasText(sessionId)) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "命令需要会话上下文");
+        }
+        conversationService.ensureAccessible(sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
+        // 直接返回 Flux：Spring MVC 原生按 SSE data: 流式输出（SseEmitter 同步 subscribe 会在连接建立前丢事件）
+        return commandService.execute(sessionId, request.getMessage(), currentUserId);
+    }
+
+    /**
+     * T3.4 自动压缩钩子：autoCompact 开且估算 token 超阈值时，先压缩再放行发送。
+     * 压缩失败仅记日志不阻断（对话可用性优先）。
+     */
+    private void autoCompactIfNeeded(String sessionId, Long userId) {
+        try {
+            if (contextCompactService.shouldAutoCompact(sessionId, userId)) {
+                java.util.Map<String, Object> conf = contextCompactService.loadUserSettings(userId);
+                int keep = ((Number) conf.get("keepRecent")).intValue();
+                log.info("[T3.4] 自动压缩触发：sessionId={}, keepRecent={}", sessionId, keep);
+                contextCompactService.compact(sessionId, userId, keep);
+            }
+        } catch (Exception e) {
+            log.warn("[T3.4] 自动压缩失败（不阻断对话）：sessionId={}, err={}", sessionId, e.getMessage());
+        }
+    }
+
 
     /**
      * 获取会话详情

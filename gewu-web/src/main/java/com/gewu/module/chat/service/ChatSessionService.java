@@ -134,6 +134,18 @@ public class ChatSessionService extends ServiceImpl<ChatSessionMapper, ChatSessi
     /**
      * T2.1 重命名：remark 即会话标题（前端 sessionTitle 已按 remark 优先展示）
      */
+    /**
+     * T3.1 /clear 命令：清空滚动摘要
+     */
+    public void clearContextSummary(String sessionId) {
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<com.gewu.module.chat.entity.ChatSession> uw =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<com.gewu.module.chat.entity.ChatSession>()
+                        .eq(com.gewu.module.chat.entity.ChatSession::getId, sessionId)
+                        .set(com.gewu.module.chat.entity.ChatSession::getContextSummary, null);
+        this.update(uw);
+        log.info("清空会话压缩摘要：sessionId={}", sessionId);
+    }
+
     public void renameSession(String sessionId, String remark) {
         ChatSession session = new ChatSession();
         session.setRemark(remark);
