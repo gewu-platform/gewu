@@ -325,14 +325,6 @@ SELECT 'smart-qa', '智能问答',
        '{"modelId":null,"maxIterations":5,"temperature":0.7}'
 WHERE NOT EXISTS (SELECT 1 FROM agent_definition WHERE id = 'smart-qa');
 
--- P8a: varchar -> jsonb IMPLICIT CAST（MyBatis-Plus String 字段写 jsonb 列，对齐 bool_to_smallint 先例，幂等可重跑）
--- 注意：函数参数必须用 TEXT 而非 VARCHAR —— 若用 VARCHAR，函数体内 v::jsonb 会命中本 CAST 自身造成无限递归（栈溢出）；varchar→text 二进制兼容，cast 函数允许 TEXT 形参
-CREATE OR REPLACE FUNCTION varchar_to_jsonb(v TEXT) RETURNS jsonb AS $fn$
-  SELECT v::jsonb
-$fn$ LANGUAGE SQL IMMUTABLE STRICT;
-
-DROP CAST IF EXISTS (VARCHAR AS jsonb);
-CREATE CAST (VARCHAR AS jsonb) WITH FUNCTION varchar_to_jsonb(v TEXT) AS IMPLICIT;
 
 -- ==========================================
 -- T5: Agent 预置模板（3 个，PRD F4）——不启用（enabled=0），作为创建向导的起点

@@ -15,7 +15,7 @@ spring:
       file-size-threshold: 2MB
 
   # ==================== 数据库配置 ====================
-  # PostgreSQL（业务数据 + 知识库向量，对齐 java-ai-native）
+  # PostgreSQL（业务数据 + 知识库向量）
   datasource:
     url: jdbc:postgresql://127.0.0.1:5432/langchain4j_kb
     username: postgres

@@ -2,7 +2,10 @@ package com.gewu.module.chat.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
+
+import com.gewu.common.mybatis.JsonbTypeHandler;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -14,7 +17,7 @@ import java.time.LocalDateTime;
  * 对应表：chat_message（PostgreSQL）
  */
 @Data
-@TableName("chat_message")
+@TableName(value = "chat_message", autoResultMap = true)
 public class ChatMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -52,7 +55,9 @@ public class ChatMessage implements Serializable {
 
     /**
      * 图片 URL 列表（多模态消息，JSONB 存储）- 对齐 native
+     * 写读经 JsonbTypeHandler 直写 jsonb（Types.OTHER），无需 IMPLICIT CAST
      */
+    @TableField(typeHandler = JsonbTypeHandler.class)
     private String imageUrls;
 
     /**
@@ -82,7 +87,9 @@ public class ChatMessage implements Serializable {
 
     /**
      * 智能模式工具调用轨迹（P8a 编排层，JSON 数组字符串：iteration/tool/input/result）
+     * 写读经 JsonbTypeHandler 直写 jsonb（Types.OTHER），无需 IMPLICIT CAST
      */
+    @TableField(typeHandler = JsonbTypeHandler.class)
     private String toolCalls;
 
     /**
