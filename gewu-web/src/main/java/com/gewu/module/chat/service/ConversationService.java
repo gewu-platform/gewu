@@ -369,4 +369,22 @@ public class ConversationService {
     public ChatSession ensureAccessible(String sessionId, Long userId, boolean adminBypass) {
         return sessionService.ensureAccessible(sessionId, userId, adminBypass);
     }
+
+    // ==================== T2 会话管理：重命名 / 分组 ====================
+
+    public void renameSession(String sessionId, String remark) {
+        sessionService.renameSession(sessionId, remark);
+    }
+
+    public void setSessionGroup(String sessionId, String groupName) {
+        sessionService.setSessionGroup(sessionId, groupName);
+    }
+
+    public int dissolveGroup(String groupName, Long userId) {
+        return sessionService.dissolveGroup(groupName, userId);
+    }
+
+    public List<String> listGroups(Long userId) {
+        return sessionService.listGroups(userId);
+    }
 }

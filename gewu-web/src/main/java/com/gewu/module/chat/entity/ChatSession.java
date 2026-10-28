@@ -78,6 +78,11 @@ public class ChatSession implements Serializable {
     private Integer isDeleted;
 
     /**
+     * T2.2：会话分组名（NULL = 未分组「默认」组；分组删除时会话回落默认）
+     */
+    private String groupName;
+
+    /**
      * 备注
      */
     private String remark;

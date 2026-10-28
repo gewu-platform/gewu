@@ -245,6 +245,63 @@ public class ChatController {
     }
 
     /**
+     * T2.1 会话重命名（remark 即标题）
+     */
+    @PatchMapping("/session/{sessionId}/title")
+    public R<SessionResponseDTO> renameSession(@PathVariable String sessionId,
+                                               @RequestBody Map<String, String> body) {
+        conversationService.ensureAccessible(sessionId,
+                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
+        String remark = body.get("remark");
+        if (remark == null || remark.isBlank()) {
+            throw new BizException(400, "会话名称不能为空");
+        }
+        if (remark.length() > 100) {
+            throw new BizException(400, "会话名称过长（≤100 字符）");
+        }
+        conversationService.renameSession(sessionId, remark.trim());
+        return R.success("会话已重命名", SessionResponseDTO.of(sessionId, null));
+    }
+
+    /**
+     * T2.2 会话归组 / 移组（groupName=null 或空 = 移出分组）
+     */
+    @PatchMapping("/session/{sessionId}/group")
+    public R<SessionResponseDTO> setSessionGroup(@PathVariable String sessionId,
+                                                 @RequestBody Map<String, String> body) {
+        conversationService.ensureAccessible(sessionId,
+                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
+        String groupName = body.get("groupName");
+        if (groupName != null && groupName.length() > 50) {
+            throw new BizException(400, "分组名过长（≤50 字符）");
+        }
+        conversationService.setSessionGroup(sessionId,
+                groupName == null || groupName.isBlank() ? null : groupName.trim());
+        return R.success("会话分组已更新", SessionResponseDTO.of(sessionId, null));
+    }
+
+    /**
+     * T2.3 删除分组（会话回落「默认」组）
+     */
+    @DeleteMapping("/groups/{groupName}")
+    public R<Map<String, Object>> dissolveGroup(@PathVariable String groupName) {
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        if (currentUserId == null) {
+            throw new BizException(401, "请先登录");
+        }
+        int affected = conversationService.dissolveGroup(groupName, currentUserId);
+        return R.success("分组已删除", Map.of("affected", affected));
+    }
+
+    /**
+     * T2.2 当前用户分组清单
+     */
+    @GetMapping("/groups")
+    public R<List<String>> listGroups() {
+        return R.success(conversationService.listGroups(usageQuotaService.resolveCurrentUserId()));
+    }
+
+    /**
      * 获取会话详情
      */
     @GetMapping("/session/{sessionId}")

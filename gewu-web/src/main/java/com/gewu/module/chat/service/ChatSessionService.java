@@ -1,6 +1,7 @@
 package com.gewu.module.chat.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.gewu.common.BizException;
 import com.gewu.common.ErrorCode;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -128,6 +129,56 @@ public class ChatSessionService extends ServiceImpl<ChatSessionMapper, ChatSessi
         return baseMapper.selectCount(new LambdaQueryWrapper<ChatSession>()
                 .eq(ChatSession::getUserId, userId)
                 .eq(ChatSession::getIsDeleted, 0));
+    }
+
+    /**
+     * T2.1 重命名：remark 即会话标题（前端 sessionTitle 已按 remark 优先展示）
+     */
+    public void renameSession(String sessionId, String remark) {
+        ChatSession session = new ChatSession();
+        session.setRemark(remark);
+        LambdaUpdateWrapper<ChatSession> uw = new LambdaUpdateWrapper<ChatSession>()
+                .eq(ChatSession::getId, sessionId)
+                .set(ChatSession::getRemark, remark);
+        baseMapper.update(null, uw);
+    }
+
+    /**
+     * T2.2 归组 / T2.3 移组
+     */
+    public void setSessionGroup(String sessionId, String groupName) {
+        LambdaUpdateWrapper<ChatSession> uw = new LambdaUpdateWrapper<ChatSession>()
+                .eq(ChatSession::getId, sessionId)
+                .set(ChatSession::getGroupName, groupName);
+        baseMapper.update(null, uw);
+    }
+
+    /**
+     * T2.3 删组：**仅当前用户名下**该组会话回落默认（groupName 置 NULL），组本身无实体
+     */
+    public int dissolveGroup(String groupName, Long userId) {
+        LambdaUpdateWrapper<ChatSession> uw = new LambdaUpdateWrapper<ChatSession>()
+                .eq(ChatSession::getGroupName, groupName)
+                .eq(ChatSession::getUserId, userId)
+                .set(ChatSession::getGroupName, null);
+        return baseMapper.update(null, uw);
+    }
+
+    /**
+     * T2.2 当前用户的分组清单（去重非空）
+     */
+    public List<String> listGroups(Long userId) {
+        return baseMapper.selectList(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getIsDeleted, 0)
+                .isNotNull(ChatSession::getGroupName)
+                .orderByAsc(ChatSession::getGroupName)
+                .last("LIMIT 200"))
+                .stream()
+                .map(ChatSession::getGroupName)
+                .filter(g -> g != null && !g.isBlank())
+                .distinct()
+                .toList();
     }
 
     /**
