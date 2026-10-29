@@ -46,7 +46,8 @@ services:
     image: ${GEWU_SERVER_IMAGE:-gewu/gewu-server:latest}
     build:
       context: .
-      dockerfile: Dockerfile
+      # U5 双模式：默认 Dockerfile（编译期打包）；预打包 jar 场景在 .env 设 GEWU_SERVER_DOCKERFILE=Dockerfile.jar
+      dockerfile: ${GEWU_SERVER_DOCKERFILE:-Dockerfile}
     container_name: gewu-server
     restart: unless-stopped
     depends_on:

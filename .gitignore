@@ -6,3 +6,5 @@ logs/
 .env
 /.claude/
 uploads/
+# U5 模式 B：预打包 jar 不进 git（目录经 docker/jar/README.md 保留）
+docker/jar/*.jar

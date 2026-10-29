@@ -1,0 +1,44 @@
+# ============================================
+# 格物 Gewu Server — 模式 B：预打包 jar 运行时镜像
+# 适用：内网部署 / 企业 CI——本机或 CI 先打好 jar，Docker 只做运行时打包
+#
+# 用法（三步）:
+#   1) mvn package -DskipTests
+#   2) cp gewu-web/target/gewu-web-1.0-SNAPSHOT.jar docker/jar/gewu-server.jar
+#      （Windows: copy /Y gewu-web\target\gewu-web-1.0-SNAPSHOT.jar docker\jar\gewu-server.jar）
+#   3) docker build -f Dockerfile.jar -t gewu/gewu-server:latest .
+#
+# compose 切换: .env 设 GEWU_SERVER_DOCKERFILE=Dockerfile.jar 后 docker compose build gewu-server
+# 运行层与模式 A（Dockerfile）完全一致（分层 + healthcheck + 时区），仅构建来源不同
+# ============================================
+
+# ---------- 分层解包层（Spring Boot layertools）----------
+FROM eclipse-temurin:17-jre-alpine AS extract
+WORKDIR /app
+COPY docker/jar/gewu-server.jar /app/app.jar
+RUN java -Djarmode=layertools -jar /app/app.jar extract --destination /app/layers
+
+# ---------- 运行层 ----------
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+
+# 时区
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache tzdata && cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 分层拷贝（变动频率从低到高）
+COPY --from=extract /app/layers/dependencies/ ./
+COPY --from=extract /app/layers/spring-boot-loader/ ./
+COPY --from=extract /app/layers/snapshot-dependencies/ ./
+COPY --from=extract /app/layers/application/ ./
+
+# 知识库上传文件卷
+VOLUME ["/app/uploads"]
+
+ENV JAVA_OPTS=""
+EXPOSE 8081
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8081/api/chat/health > /dev/null 2>&1 || exit 1
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]

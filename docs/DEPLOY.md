@@ -11,7 +11,7 @@
 | 项 | 要求 |
 |---|---|
 | 操作系统 | Linux（Ubuntu 22.04+/CentOS 8+）或 Windows Server 2019+ |
-| Docker | 24.0+ 与 Docker Compose v2.19+（`docker compose version` 验证） |
+| Docker | ≥ 24（compose v2 内置；模式 A 全程容器内构建 / 模式 B 仅运行时打包，均需） |
 | nginx | 宿主机已安装（前端托管 + API 反代） |
 | Node.js | ≥ 20（仅构建前端产物时需要；可在任意机器构建后拷贝 dist） |
 | 内存 | ≥ 8G（后端 JVM 1G + PG + nginx） |
@@ -66,6 +66,27 @@ docker compose up -d
 docker compose ps        # 两个服务 healthy/running 即就绪
 docker compose logs -f gewu-server   # 看到「格物 Gewu - 服务已启动」横幅
 ```
+
+#### 镜像构建双模式（U5）
+
+`docker compose up -d` 会按需构建 `gewu-server` 镜像，两种模式任选：
+
+**模式 A：编译期打包（默认，`Dockerfile`）**——容器内多阶段构建，本机无需 JDK/Maven：
+
+```bash
+docker compose build gewu-server   # 或直接 up -d 触发；依赖层已缓存，源码变更增量很快
+```
+
+**模式 B：先自行打包，再用打包好的 jar 构建运行时镜像（`Dockerfile.jar`）**——内网/企业 CI 常用：
+
+```bash
+mvn package -DskipTests                                                # ① 本机或 CI 打 jar
+cp gewu-web/target/gewu-web-1.0-SNAPSHOT.jar docker/jar/gewu-server.jar  # ② 放到约定位置
+GEWU_SERVER_DOCKERFILE=Dockerfile.jar docker compose build gewu-server   # ③ 用预打包 jar 构建镜像
+```
+
+> 模式 B 也可脱离 compose 直接构建：`docker build -f Dockerfile.jar -t gewu/gewu-server:latest .`
+> 两种模式运行层完全一致（分层缓存 + healthcheck + 时区）；Windows 下 ② 用 `copy /Y`。jar 不进 git。
 
 首次启动自动执行 `database/gewu-init.sql` 建表（幂等）。
 
@@ -167,7 +188,7 @@ tar xzf gewu-deploy-pkg.tar.gz
 | 看服务状态 | `docker compose ps` |
 | 看后端日志 | `docker compose logs -f gewu-server`（容器内文件日志：`/app/logs/gewu-web.log`） |
 | 重启后端 | `docker compose restart gewu-server` |
-| 升级后端 | 重新 `docker compose build gewu-server && docker compose up -d` |
+| 升级后端 | 双模式见 §1.3：模式 A `docker compose build gewu-server`；模式 B 先 `mvn package` + 拷 jar 至 `docker/jar/` 再以 `GEWU_SERVER_DOCKERFILE=Dockerfile.jar` build；完成后 `docker compose up -d` |
 | 前端发布 | 重新 `npm run build`，覆盖站点目录，浏览器强刷（产物带 hash 无缓存问题） |
 | 备份数据库 | 见 §5 |
 | 备份知识库文件 | `docker run --rm -v gewu_gewu-uploads:/data -v $PWD:/backup alpine tar czf /backup/uploads.tgz /data` |
@@ -225,6 +246,9 @@ gunzip -c gewu-db-2026-10-23.sql.gz | docker exec -i gewu-db psql -U gewu gewu
 
 **Q6：内网机器时间不对导致 token 频繁过期？**
 容器内 TZ=Asia/Shanghai 已设，但宿主机时钟漂移会影响 JWT 校验，校时（ntp）即可。
+
+**Q7：`docker compose build` 时提示找不到 `docker/jar/gewu-server.jar`（模式 B）？**
+模式 B 需要三步缺一不可：① `mvn package -DskipTests` ② 拷 jar 到 `docker/jar/gewu-server.jar` ③ `.env` 设 `GEWU_SERVER_DOCKERFILE=Dockerfile.jar`。只想容器内编译就用默认模式 A（把该变量删掉即可）。
 
 ## U4 Redis
 
