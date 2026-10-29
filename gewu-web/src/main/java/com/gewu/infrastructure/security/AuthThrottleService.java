@@ -1,6 +1,8 @@
 package com.gewu.infrastructure.security;
 
+import com.gewu.infrastructure.redis.RedisCacheService;
 import lombok.RequiredArgsConstructor;
+import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +23,10 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 public class AuthThrottleService {
 
     private final AuthThrottleProperties properties;
+    private final RedisCacheService redisCacheService;
+
+    /** U4：Redis 限流键前缀 */
+    private static final String THROTTLE_KEY_PREFIX = "gewu:throttle:";
 
     /**
      * key = username|ip，value = 窗口内失败时间戳队列
@@ -33,6 +39,17 @@ public class AuthThrottleService {
     public boolean isAllowed(String key) {
         if (!properties.isEnabled()) {
             return true;
+        }
+        // U4：Redis 滑动窗口优先（多实例共享）；不可用回落本机内存
+        String redisKey = THROTTLE_KEY_PREFIX + key;
+        long nowMs = System.currentTimeMillis();
+        long windowStartMs = nowMs - properties.getWindowSeconds() * 1000;
+        long evicted = redisCacheService.zsetRemoveRangeByScore(redisKey, 0, windowStartMs);
+        if (evicted >= 0) {
+            long count = redisCacheService.zsetCard(redisKey);
+            if (count >= 0) {
+                return count < properties.getMaxAttempts();
+            }
         }
         Deque<Long> attempts = attemptMap.get(key);
         if (attempts == null) {
@@ -55,8 +72,14 @@ public class AuthThrottleService {
         if (!properties.isEnabled()) {
             return;
         }
-        Deque<Long> attempts = attemptMap.computeIfAbsent(key, k -> new ConcurrentLinkedDeque<>());
         long now = System.currentTimeMillis();
+        // U4：Redis 记录失败（TTL=窗口长度自动过期）；不可用回落本机内存
+        boolean redisOk = redisCacheService.zsetAdd(THROTTLE_KEY_PREFIX + key, String.valueOf(now), now,
+                Duration.ofSeconds(properties.getWindowSeconds()));
+        if (redisOk) {
+            return;
+        }
+        Deque<Long> attempts = attemptMap.computeIfAbsent(key, k -> new ConcurrentLinkedDeque<>());
         attempts.addLast(now);
         evictExpired(attempts, now);
         log.warn("登录失败已记录: key={}, 窗口内失败次数={}", key, attempts.size());
@@ -66,6 +89,8 @@ public class AuthThrottleService {
      * 登录成功后重置计数
      */
     public void reset(String key) {
+        // U4：Redis 侧同步清理
+        redisCacheService.del(THROTTLE_KEY_PREFIX + key);
         attemptMap.remove(key);
     }
 

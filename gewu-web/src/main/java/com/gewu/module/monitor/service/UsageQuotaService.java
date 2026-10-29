@@ -13,7 +13,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.gewu.infrastructure.redis.RedisCacheService;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * T6 用户级每日 token 配额（env/yml 配置，默认关闭；超限抛 BizException，不做预扣）
@@ -25,6 +28,10 @@ public class UsageQuotaService {
 
     private final LlmCallLogMapper llmCallLogMapper;
     private final UserMapper userMapper;
+    private final RedisCacheService redisCacheService;
+
+    /** U4：当日配额计数键（复用 RedisCacheService.KEY_QUOTA_PREFIX） */
+    private static final String QUOTA_KEY_PREFIX = RedisCacheService.KEY_QUOTA_PREFIX;
 
     /** 是否启用配额：GEWU_QUOTA_ENABLED / gewu.quota.enabled，默认 false */
     @Value("${gewu.quota.enabled:false}")
@@ -41,8 +48,31 @@ public class UsageQuotaService {
         if (!enabled || userId == null) {
             return;
         }
+        // U4：Redis 当日计数快路径（毫秒级拒绝）；未命中/不可用走 DB SUM
+        String qkey = QUOTA_KEY_PREFIX + userId + ":" + LocalDate.now();
+        String cachedUsed = redisCacheService.get(qkey);
+        if (cachedUsed != null) {
+            try {
+                long cached = Long.parseLong(cachedUsed);
+                if (cached >= dailyTokenLimit) {
+                    log.warn("用户 token 配额已超限(Redis 快路径) userId={}, used={}, limit={}", userId, cached, dailyTokenLimit);
+                    throw new com.gewu.common.BizException(429, "今日 token 配额已用完（" + cached + "/" + dailyTokenLimit + "），请明日再试或联系管理员调整");
+                }
+                return;
+            } catch (NumberFormatException nfe) {
+                redisCacheService.del(qkey);
+            }
+        }
         Long used = llmCallLogMapper.sumUserTokensOfDay(userId, LocalDate.now().atStartOfDay());
         long usedTokens = used != null ? used : 0;
+        // U4：回填当日计数缓存（TTL 至当日 24 点）
+        try {
+            Duration ttl = Duration.between(LocalDateTime.now(), LocalDate.now().plusDays(1).atStartOfDay());
+            if (!ttl.isNegative() && !ttl.isZero()) {
+                redisCacheService.set(qkey, String.valueOf(usedTokens), ttl);
+            }
+        } catch (Exception ignored) {
+        }
         if (usedTokens >= dailyTokenLimit) {
             log.warn("用户 token 配额已超限: userId={}, used={}, limit={}", userId, usedTokens, dailyTokenLimit);
             throw new com.gewu.common.BizException(429, "今日 token 配额已用完（" + usedTokens + "/" + dailyTokenLimit + "），请明日再试或联系管理员调整");

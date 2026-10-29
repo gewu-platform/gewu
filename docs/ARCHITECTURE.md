@@ -67,7 +67,7 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
 
 ```
 前端 → POST /api/agent/chat/stream（JWT）
-  → JwtAuthenticationFilter（DB 令牌校验，替代 Redis）
+  → JwtAuthenticationFilter（U4：Redis 令牌校验快路径，未命中/不可用回落 DB）
   → UsageQuotaService.checkQuota（T6：SecurityContext 解析 userId，超限 429）
   → AgentService.chatStream
       → 会话持久化（chat_session/chat_message）
@@ -109,3 +109,16 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
 ## 部署形态
 
 后端 jar（Dockerfile 多阶段 + layertools 分层）+ `pgvector/pgvector:pg16`；前端 nginx 托管 dist + `/api` 反代（SSE 需 `proxy_buffering off`）。详见 `docs/DEPLOY.md`。
+
+## U4 Redis 中间件
+
+用途（纯缓存/加速层，DB 始终为真相源）：
+
+| 场景 | 键 | 策略 |
+|---|---|---|
+| 令牌状态校验 | `gewu:token:{sha256}` | TTL=剩余有效期；登出/换新即删 |
+| 登录限流滑动窗口 | `gewu:throttle:{username\|ip}` | ZSET + TTL=窗口长度 |
+| 每日配额计数 | `gewu:quota:{userId}:{date}` | INCRBY + 当日到期；快速拒绝超限请求 |
+| 用户设置缓存 | `gewu:usetting:{userId}` | cache-aside，TTL 30min，写后删 |
+
+降级：Redis 不可达时全部操作自动回落 DB/内存原路径（60s 失败冷却），`gewu.redis.enabled=false` 可整体关闭。

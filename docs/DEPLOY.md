@@ -225,3 +225,10 @@ gunzip -c gewu-db-2026-10-23.sql.gz | docker exec -i gewu-db psql -U gewu gewu
 
 **Q6：内网机器时间不对导致 token 频繁过期？**
 容器内 TZ=Asia/Shanghai 已设，但宿主机时钟漂移会影响 JWT 校验，校时（ntp）即可。
+
+## U4 Redis
+
+- compose 已内置 `gewu-redis`（redis:7-alpine，无持久化纯缓存），`gewu-server` 自动连接，无需额外配置。
+- 宿主机调试端口：`GEWU_REDIS_PORT`（默认 16379）。
+- 应用侧开关：`GEWU_REDIS_ENABLED`（默认 true；false 时全部走 DB/内存原路径）。
+- Redis 不可用不影响业务：令牌校验/限流/配额/设置缓存自动降级回 DB/内存。

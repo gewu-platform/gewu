@@ -49,6 +49,12 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- Redis（U4：令牌校验/登录限流/配额计数/设置缓存；不可达自动降级 DB/内存） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- 参数校验 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

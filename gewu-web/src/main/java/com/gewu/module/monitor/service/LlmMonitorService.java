@@ -11,6 +11,8 @@ import com.gewu.module.monitor.entity.LlmCallLog;
 import com.gewu.module.monitor.mapper.LlmCallLogMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.gewu.infrastructure.redis.RedisCacheService;
+import java.time.Duration;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -32,12 +34,19 @@ public class LlmMonitorService {
 
     private final LlmCallLogMapper llmCallLogMapper;
     private final LangChain4jConfig langChain4jConfig;
+    private final RedisCacheService redisCacheService;
 
     /**
      * 记录一次 LLM 调用（同步）
      */
     public void logCall(LlmCallLog logEntry) {
         llmCallLogMapper.insert(logEntry);
+        // U4：累加当日配额计数（DB 落库成功后；Redis 仅作快速拒绝加速）
+        if (logEntry.getUserId() != null && logEntry.getTotalTokens() > 0) {
+            redisCacheService.incrBy(RedisCacheService.KEY_QUOTA_PREFIX + logEntry.getUserId() + ":" + LocalDate.now(),
+                    logEntry.getTotalTokens(),
+                    Duration.between(LocalDateTime.now(), LocalDate.now().plusDays(1).atStartOfDay()));
+        }
         log.debug("记录 LLM 调用：model={}, status={}, tokens={}, latency={}ms",
                 logEntry.getModelName(), logEntry.getStatus(),
                 logEntry.getTotalTokens(), logEntry.getLatency());
@@ -72,6 +81,12 @@ public class LlmMonitorService {
             entry.setCost(estimateCost(modelName, entry.getTotalTokens()));
 
             llmCallLogMapper.insert(entry);
+            // U4：累加当日配额计数（DB 落库成功后）
+            if (userId != null && entry.getTotalTokens() > 0) {
+                redisCacheService.incrBy(RedisCacheService.KEY_QUOTA_PREFIX + userId + ":" + LocalDate.now(),
+                        entry.getTotalTokens(),
+                        Duration.between(LocalDateTime.now(), LocalDate.now().plusDays(1).atStartOfDay()));
+            }
             log.debug("异步记录 LLM 调用：model={}, tokens={}, latency={}ms",
                     modelName, entry.getTotalTokens(), latency);
         } catch (Exception e) {

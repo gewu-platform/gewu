@@ -29,6 +29,14 @@ spring:
       max-lifetime: 1800000
       connection-timeout: 30000
 
+  # ==================== Redis（U4：令牌校验/登录限流/配额计数/设置缓存；不可达自动降级） ====================
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      database: 0
+      timeout: 2s
 # ==================== LangChain4j 配置 ====================
 langchain4j:
   # 当前激活的模型 ID
@@ -104,3 +112,9 @@ security:
       enabled: true
       max-attempts: 5
       window-seconds: 300
+
+# ==================== Gewu 自定义配置 ====================
+gewu:
+  redis:
+    # U4：Redis 总开关（false 全走原 DB/内存路径；true 时 Redis 不可达自动降级）
+    enabled: ${GEWU_REDIS_ENABLED:true}

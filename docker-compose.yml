@@ -27,6 +27,21 @@ services:
       retries: 10
       start_period: 10s
 
+  gewu-redis:
+    image: redis:7-alpine
+    container_name: gewu-redis
+    restart: unless-stopped
+    # U4：纯缓存用途（令牌校验/限流/配额/设置缓存），不开启持久化
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    ports:
+      - "${GEWU_REDIS_PORT:-16379}:6379"
+
   gewu-server:
     image: ${GEWU_SERVER_IMAGE:-gewu/gewu-server:latest}
     build:
@@ -37,12 +52,17 @@ services:
     depends_on:
       gewu-db:
         condition: service_healthy
+      gewu-redis:
+        condition: service_healthy
     environment:
       TZ: Asia/Shanghai
       # 数据库（覆盖 yml 默认值，指向容器网络内 db）
       SPRING_DATASOURCE_URL: jdbc:postgresql://gewu-db:5432/${GEWU_DB_NAME:-gewu}
       SPRING_DATASOURCE_USERNAME: ${GEWU_DB_USER:-gewu}
       SPRING_DATASOURCE_PASSWORD: ${GEWU_DB_PASSWORD:?请在 .env 设置 GEWU_DB_PASSWORD}
+      # Redis（U4：指向容器网络内 gewu-redis）
+      SPRING_DATA_REDIS_HOST: gewu-redis
+      SPRING_DATA_REDIS_PORT: 6379
       # JWT（生产必须改随机值）
       JWT_SECRET: ${GEWU_JWT_SECRET:?请在 .env 设置 GEWU_JWT_SECRET}
       # 模型 Key：不经 compose 透传（空值会覆盖 yml 默认种子导致模型不可用）。

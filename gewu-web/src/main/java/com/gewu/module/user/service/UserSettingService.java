@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.gewu.infrastructure.redis.RedisCacheService;
 import org.springframework.jdbc.core.JdbcTemplate;
+import java.time.Duration;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -28,6 +30,10 @@ public class UserSettingService {
     public static final int DEFAULT_KEEP_RECENT = 20;
 
     private final JdbcTemplate jdbcTemplate;
+    private final RedisCacheService redisCacheService;
+
+    /** U4：用户设置缓存键前缀（cache-aside，TTL 30min，写后删） */
+    private static final String SETTING_CACHE_PREFIX = "gewu:usetting:";
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 读用户设置（不存在/损坏 → 默认值） */
@@ -38,6 +44,11 @@ public class UserSettingService {
         conf.put("compactKeepRecent", DEFAULT_KEEP_RECENT);
         if (userId == null) {
             return conf;
+        }
+        // U4：缓存命中直接返回（存的是合并后的完整配置）
+        Map<String, Object> cachedConf = redisCacheService.getJson(SETTING_CACHE_PREFIX + userId);
+        if (cachedConf != null && cachedConf.containsKey("compactThreshold")) {
+            return cachedConf;
         }
         try {
             var rows = jdbcTemplate.queryForList(
@@ -51,6 +62,8 @@ public class UserSettingService {
         } catch (Exception e) {
             log.warn("[T3] 读取用户设置失败（用默认）：userId={}, err={}", userId, e.getMessage());
         }
+        // U4：回填缓存（30 分钟）
+        redisCacheService.setJson(SETTING_CACHE_PREFIX + userId, conf, Duration.ofMinutes(30));
         return conf;
     }
 
@@ -80,6 +93,8 @@ public class UserSettingService {
                 jdbcTemplate.update(
                         "INSERT INTO sys_user_setting (user_id, settings) VALUES (?, ?)", userId, json);
             }
+            // U4：写后删缓存（下次读回源 DB）
+            redisCacheService.del(SETTING_CACHE_PREFIX + userId);
             log.info("[T3] 用户设置已保存: userId={}", userId);
         } catch (BizException e) {
             throw e;
