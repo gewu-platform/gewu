@@ -7,6 +7,8 @@ import com.gewu.module.chat.entity.ChatMessage;
 import com.gewu.module.chat.entity.ChatSession;
 import com.gewu.module.chat.mapper.ChatMessageMapper;
 import com.gewu.module.chat.mapper.ChatSessionMapper;
+import com.gewu.module.monitor.entity.LlmCallLog;
+import com.gewu.module.monitor.mapper.LlmCallLogMapper;
 import com.gewu.module.user.service.UserSettingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,7 @@ import java.util.Map;
 public class ContextCompactService {
 
     private final ChatSessionMapper sessionMapper;
+private final LlmCallLogMapper lastCallMapper;
     private final ChatMessageMapper messageMapper;
     private final com.gewu.client.LangChain4jConfig langChain4jConfig;
     private final UserSettingService userSettingService;
@@ -148,5 +151,42 @@ public class ContextCompactService {
         String summary = session.getContextSummary();
         if (summary != null) est += summary.length() / 4;
         return est > threshold;
+    }
+
+    /**
+     * T5 上下文用量估算（前端环形指示）：未压缩消息字符/4 + 摘要字符/4，对照用户阈值
+     */
+    public Map<String, Object> getContextUsage(String sessionId, Long userId) {
+        Map<String, Object> conf = loadUserSettings(userId);
+        int threshold = ((Number) conf.get("threshold")).intValue();
+        ChatSession session = sessionMapper.selectById(sessionId);
+        long used = 0;
+        if (session != null) {
+            String summary = session.getContextSummary();
+            if (summary != null) used += summary.length() / 4;
+            List<ChatMessage> messages = messageMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ChatMessage>()
+                            .eq(ChatMessage::getSessionId, sessionId));
+            for (ChatMessage m : messages) {
+                if (m.getCompressed() != null && m.getCompressed() == 1) continue;
+                used += (m.getContent() == null ? 0 : m.getContent().length()) / 4;
+            }
+        }
+        int percent = threshold > 0 ? (int) Math.min(100, used * 100L / threshold) : 0;
+        // U2.1 最近一次运行的词元数与费用（该会话最新一条调用日志）
+        LlmCallLog lastCall = lastCallMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<LlmCallLog>()
+                        .eq(LlmCallLog::getSessionId, sessionId)
+                        .orderByDesc(LlmCallLog::getCreateTime)
+                        .last("LIMIT 1"));
+        Map<String, Object> r = new HashMap<>();
+        r.put("lastPromptTokens", lastCall == null ? 0L : lastCall.getPromptTokens());
+        r.put("lastCompletionTokens", lastCall == null ? 0L : lastCall.getCompletionTokens());
+        r.put("lastCost", lastCall == null ? java.math.BigDecimal.ZERO : lastCall.getCost());
+        r.put("used", used);
+        r.put("threshold", threshold);
+        r.put("percent", percent);
+        r.put("autoCompact", Boolean.TRUE.equals(conf.get("autoCompact")));
+        return r;
     }
 }

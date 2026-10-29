@@ -349,6 +349,16 @@ public class ChatController {
         return R.success(userSettingService.loadSettings(currentUserId));
     }
 
+    /**
+     * T5 上下文用量（前端环形指示）：used/threshold/percent/autoCompact
+     */
+    @GetMapping("/session/{sessionId}/context-usage")
+    public R<java.util.Map<String, Object>> getContextUsage(@PathVariable String sessionId) {
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        conversationService.ensureAccessible(sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
+        return R.success(contextCompactService.getContextUsage(sessionId, currentUserId));
+    }
+
     // ==================== T3.1 斜杠命令（v1.0.1 B4） ====================
 
     /**
