@@ -58,4 +58,12 @@ public class AgentDefinitionRequest {
 
     /** T5 默认检索条数 */
     private Integer ragTopK;
+
+    // ==================== V2.0.0 R1 多 Agent 主从编排 ====================
+
+    /** 角色：未设置=普通 Agent；master=可派发子 Agent */
+    private String role;
+
+    /** master 允许派发的子 Agent id 清单 */
+    private java.util.List<String> allowedWorkers;
 }

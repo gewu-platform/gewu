@@ -270,6 +270,8 @@ public class AgentController {
                         .requireApproval(req.getRequireApproval())
                         .knowledgeDocumentIds(req.getKnowledgeDocumentIds())
                         .ragTopK(req.getRagTopK())
+                        .role(req.getRole())
+                        .allowedWorkers(req.getAllowedWorkers())
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : true)
                 .build();
@@ -302,6 +304,8 @@ public class AgentController {
                         .requireApproval(req.getRequireApproval())
                         .knowledgeDocumentIds(req.getKnowledgeDocumentIds())
                         .ragTopK(req.getRagTopK())
+                        .role(req.getRole())
+                        .allowedWorkers(req.getAllowedWorkers())
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : existing.getEnabled())
                 .creatorId(existing.getCreatorId())
