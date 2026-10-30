@@ -51,8 +51,39 @@ public class SkillLibraryService {
     /** Skill 子目录下的固定文件名 */
     private static final String SKILL_FILE = "SKILL.md";
 
-    @Value("${gewu.skills.dir:C:\\Users\\25333\\.agents\\skills}")
+    @Value("${gewu.skills.dir:${GEWU_SKILLS_DIR:C:\\Users\\25333\\.agents\\skills}}")
     private String skillsDir;
+
+    /**
+     * R2/T2.2 运行时改目录：仅改内存态（不回写 application.yml，避免应用写坏自身配置）。
+     *
+     * @param dir 新目录；null/空白或不存在/不可读时返回 false 且不改值
+     * @return 是否切换成功
+     */
+    public boolean setSkillsDir(String dir) {
+        if (dir == null || dir.isBlank()) {
+            log.warn("[Skill] 目录为空，忽略修改");
+            return false;
+        }
+        Path p = Paths.get(dir.trim());
+        if (!Files.isDirectory(p) || !Files.isReadable(p)) {
+            log.warn("[Skill] 目录不存在或不可读，忽略修改：{}", dir);
+            return false;
+        }
+        this.skillsDir = p.toString();
+        log.info("[Skill] 目录已切换（运行时）：{}", this.skillsDir);
+        return true;
+    }
+
+    /** 目录是否存在且可读（T2.4 前端明确提示用） */
+    public boolean isDirReadable() {
+        try {
+            Path p = Paths.get(skillsDir);
+            return Files.isDirectory(p) && Files.isReadable(p);
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     /**
      * 全量重扫目录（T2.3 手动重扫入口）

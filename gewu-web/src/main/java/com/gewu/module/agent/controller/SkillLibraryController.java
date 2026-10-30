@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +37,42 @@ public class SkillLibraryController {
         return R.success(skillLibrary.list());
     }
 
+
+    /**
+     * R2/T2.2：查看当前生效目录（含是否存在且可读）
+     */
+    @GetMapping("/dir")
+    public R<Map<String, Object>> getDir() {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("dir", skillLibrary.getSkillsDir());
+        data.put("readable", skillLibrary.isDirReadable());
+        return R.success(data);
+    }
+
+    /**
+     * R2/T2.2：运行时切换目录并立即重扫。
+     * 仅改内存态，不回写 application.yml（重启回退到 yml/env 配置值）。
+     *
+     * @param body { "dir": "D:\\skills" }
+     */
+    @PostMapping("/dir")
+    public R<Map<String, Object>> setDir(@RequestBody(required = false) Map<String, String> body) {
+        String dir = body == null ? null : body.get("dir");
+        boolean ok = skillLibrary.setSkillsDir(dir);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("changed", ok);
+        data.put("dir", skillLibrary.getSkillsDir());
+        data.put("readable", skillLibrary.isDirReadable());
+        if (ok) {
+            int count = skillLibrary.rescan();
+            data.put("count", count);
+        } else if (dir != null && !dir.isBlank()) {
+            data.put("message", "目录不存在或不可读，未修改");
+        } else {
+            data.put("message", "目录为空，未修改");
+        }
+        return R.success(data);
+    }
     /**
      * 手动重扫目录（增删 SKILL.md 后生效）
      *

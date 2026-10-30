@@ -115,6 +115,9 @@ security:
 
 # ==================== Gewu 自定义配置 ====================
 gewu:
+  # V2.0.0 R2/T2.5：公共 Skill 库目录（环境变量 GEWU_SKILLS_DIR 可覆盖）
+  skills:
+    dir: ${GEWU_SKILLS_DIR:C:\Users\25333\.agents\skills}
   redis:
     # U4：Redis 总开关（false 全走原 DB/内存路径；true 时 Redis 不可达自动降级）
     enabled: ${GEWU_REDIS_ENABLED:true}
