@@ -146,6 +146,129 @@ public class AgentService {
                 toolRegistry.getAllSpecifications(), MAX_ITERATIONS, null, null, userId);
     }
 
+
+    // ==================== V2.0.0 R1 多 Agent 主从编排 ====================
+
+    /**
+     * 派发上下文（ThreadLocal）：executeWithDispatch 为 master 执行工具前 set，执行后必 clear。
+     * DefaultToolExecutor 反射调用与 check/execute 同线程，确定性成立；
+     * 子 Agent 执行期间不再 set（深度强制一层），编排树防循环。
+     */
+    private static final ThreadLocal<DispatchContext> DISPATCH_CONTEXT = new ThreadLocal<>();
+
+    /** 子 Agent 执行标志：runSubAgent 进入置位、finally 清除；深度防护唯一判据 */
+    private static final ThreadLocal<Boolean> DISPATCH_ACTIVE = new ThreadLocal<>();
+
+    /** 子 Agent 是否正在本线程执行（dispatch 深度校验唯一判据） */
+    public static boolean inDispatch() {
+        return Boolean.TRUE.equals(DISPATCH_ACTIVE.get());
+    }
+
+    @lombok.Data
+    @lombok.Builder
+    public static class DispatchContext {
+        private Long parentUserId;
+        private String parentSessionId;
+        /** 发起派发的主 Agent id */
+        private String callerAgentId;
+        /** 主 Agent 允许派发的子 Agent 清单（null/空=未配置，拒绝派发） */
+        private java.util.List<String> allowedWorkers;
+    }
+
+    /** 读当前线程派发上下文（AgentDispatchTool 用）；无则返回 null */
+    public static DispatchContext currentDispatchContext() {
+        return DISPATCH_CONTEXT.get();
+    }
+
+    /**
+     * R1/T1.2：工具执行包装——主 Agent 会话模式下为 agent_dispatch 建立派发上下文，
+     * 子 Agent 执行期间（inDispatch=true）不再建立（编排树仅一层），执行后确定性清理。
+     */
+    private String executeWithDispatch(dev.langchain4j.agent.tool.ToolExecutionRequest req,
+                                       String sessionId, String agentId, Long userId) {
+        boolean owns = false;
+        if (!inDispatch() && sessionId != null && !sessionId.isBlank() && userId != null) {
+            // 仅 master 角色 Agent 建立派发上下文；非 master 不建（dispatch 工具将以未授权拒绝）
+            AgentDefinition caller = agentId != null ? agentRegistry.get(agentId) : null;
+            if (caller != null && caller.getConfig() != null
+                    && "master".equals(caller.getConfig().getRole())) {
+                DISPATCH_CONTEXT.set(DispatchContext.builder()
+                        .parentUserId(userId).parentSessionId(sessionId)
+                        .callerAgentId(caller.getId())
+                        .allowedWorkers(caller.getConfig().getAllowedWorkers())
+                        .build());
+                owns = true;
+            }
+        }
+        try {
+            return toolRegistry.execute(req);
+        } finally {
+            if (owns) {
+                DISPATCH_CONTEXT.remove();
+            }
+        }
+    }
+
+    /**
+     * R1/T1.2：主 Agent 派发——子 Agent 以独立子会话执行任务。
+     * 复用 chatWithAgent 语义但传 childSessionId：sessionMode 自动生效
+     * （历史加载、双消息落库、llm_call_log 监控埋点全部白拿，T1.4 免费达成）。
+     * 结果经 agent_dispatch 工具返回值同步回流主 Agent；子会话挂 parent_session_id 供树形关联。
+     */
+    public AgentResult runSubAgent(String workerAgentId, String task, DispatchContext ctx) {
+        AgentDefinition def = agentRegistry.get(workerAgentId);
+        if (def == null) {
+            throw new IllegalArgumentException("子 Agent 不存在: " + workerAgentId);
+        }
+        if (!Boolean.TRUE.equals(def.getEnabled())) {
+            throw new IllegalStateException("子 Agent 未启用: " + workerAgentId);
+        }
+        if (def.getConfig() != null && "master".equals(def.getConfig().getRole())) {
+            throw new IllegalArgumentException("编排树仅一层：不允许派发 master 角色 Agent");
+        }
+        // 独立子会话（mode=agent 标记来源），复用 C1 派生语义但不克隆父上下文——
+        // 子任务应聚焦 task 本身，父会话摘要反而污染子上下文
+        Long parentUserId = ctx != null ? ctx.getParentUserId() : null;
+        String parentSessionId = ctx != null ? ctx.getParentSessionId() : null;
+        String childSessionId = java.util.UUID.randomUUID().toString();
+        chatSessionService.createSession(childSessionId, "agent", null, def.getSystemPrompt(), parentUserId);
+        // 挂父会话（前端树形关联用）；无父（直连派发）则作留档型会话
+        if (parentSessionId != null && !parentSessionId.isBlank()) {
+            try {
+                com.gewu.module.chat.entity.ChatSession child = chatSessionService.getSession(childSessionId);
+                if (child != null) {
+                    child.setParentSessionId(parentSessionId);
+                    chatSessionService.updateSession(child);
+                }
+            } catch (Exception e) {
+                log.warn("[Dispatch] 子会话挂父失败（继续执行）：{}", e.getMessage());
+            }
+        }
+        log.info("[Dispatch] 子会话已建：child={}, worker={}, parentSession={}",
+                childSessionId, workerAgentId, parentSessionId);
+        // 子 Agent 免审批（编排场景无人值守，同步执行无审批通道，要求审批会永久挂起）；
+        // 置位 ACTIVE：子执行内再调 agent_dispatch 被 executeWithDispatch/dispatch 双层拒绝
+        DISPATCH_ACTIVE.set(Boolean.TRUE);
+        try {
+            AgentResult result = executeLoop(
+                    def.getConfig() != null && def.getConfig().getModelId() != null
+                            ? def.getConfig().getModelId() : langChain4jConfig.getActiveModel(),
+                    def.getSystemPrompt(), task,
+                    agentRegistry.getToolSpecifications(workerAgentId),
+                    def.getConfig() != null && def.getConfig().getMaxIterations() != null
+                            ? def.getConfig().getMaxIterations() : MAX_ITERATIONS,
+                    workerAgentId, childSessionId, Boolean.FALSE, parentUserId);
+            log.info("[Dispatch] 子 Agent 执行完成：worker={}, child={}, iterations={}, toolsUsed={}",
+                    workerAgentId, childSessionId, result.getIterationCount(), result.getToolsUsed());
+            return result;
+        } catch (Exception e) {
+            log.warn("[Dispatch] 子 Agent 执行失败：worker={}, {}", workerAgentId, e.getMessage());
+            throw e;
+        } finally {
+            DISPATCH_ACTIVE.remove();
+        }
+    }
+
     // ==================== 流式对话 ====================
 
     /**
@@ -366,7 +489,7 @@ public class AgentService {
                         String result;
                         switch (approval.getStatus()) {
                             case AUTO_APPROVED, APPROVED -> {
-                                result = toolRegistry.execute(req);
+                                result = executeWithDispatch(req, sessionId, finalAgentId, userId);
                                 if (!toolsUsed.contains(req.name())) {
                                     toolsUsed.add(req.name());
                                 }
@@ -380,7 +503,7 @@ public class AgentService {
                                 }
                                 boolean approved = waitApprovalDecision(sink, toolCallId);
                                 if (approved) {
-                                    result = toolRegistry.execute(req);
+                                    result = executeWithDispatch(req, sessionId, finalAgentId, userId);
                                     if (!toolsUsed.contains(req.name())) {
                                         toolsUsed.add(req.name());
                                     }
@@ -592,7 +715,7 @@ public class AgentService {
                 String result;
                 switch (approval.getStatus()) {
                     case AUTO_APPROVED, APPROVED -> {
-                        result = toolRegistry.execute(req);
+                        result = executeWithDispatch(req, sessionId, agentId, userId);
                         if (!toolsUsed.contains(req.name())) {
                             toolsUsed.add(req.name());
                         }

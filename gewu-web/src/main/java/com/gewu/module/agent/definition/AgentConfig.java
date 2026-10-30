@@ -43,4 +43,11 @@ public class AgentConfig {
 
     /** T5 定义级默认检索条数（1-10，空 = 编排层默认 4） */
     private Integer ragTopK;
+    // ==================== V2.0.0 R1 多 Agent 主从编排 ====================
+
+    /** 角色：未设置=普通 Agent；master=可派发子 Agent */
+    private String role;
+
+    /** master 可调度的子 Agent id 清单（null/空=未配置派发目标） */
+    private java.util.List<String> allowedWorkers;
 }
