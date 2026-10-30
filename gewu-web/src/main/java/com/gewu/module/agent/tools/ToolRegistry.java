@@ -139,6 +139,26 @@ public class ToolRegistry {
         return spec != null ? spec.description() : "";
     }
 
+
+    /**
+     * V1.1.0 C3/T3.3：直注册外部工具（MCP 桥接用——非 @Tool 注解 Bean，spec/executor 直接入表）
+     */
+    public void registerDirect(dev.langchain4j.agent.tool.ToolSpecification spec, ToolExecutor executor) {
+        specs.put(spec.name(), spec);
+        executors.put(spec.name(), executor);
+        log.info("注册外部工具：{}", spec.name());
+    }
+
+    /**
+     * V1.1.0 C3/T3.3：注销外部工具（MCP server 停用/删除时）
+     */
+    public void unregister(String toolName) {
+        specs.remove(toolName);
+        executors.remove(toolName);
+        toolBeans.remove(toolName);
+        log.info("注销外部工具：{}", toolName);
+    }
+
     private java.lang.reflect.Method findMethod(Object bean, String toolName) {
         for (java.lang.reflect.Method m : bean.getClass().getMethods()) {
             dev.langchain4j.agent.tool.Tool ann = m.getAnnotation(dev.langchain4j.agent.tool.Tool.class);
