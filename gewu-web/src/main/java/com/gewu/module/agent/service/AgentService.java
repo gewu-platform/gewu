@@ -69,6 +69,9 @@ public class AgentService {
     private final KnowledgeBaseService knowledgeBaseService;
     private final ToolApprovalGateway approvalGateway = new ToolApprovalGateway();
 
+    // V1.1.0 C2：执行态持久化（checkpoint 叶子服务，仅依赖 Mapper 无循环依赖）
+    private final AgentExecutionService executionService;
+
     /** 挂起中的审批决策凭证：toolCallId → future（true=批准，false=拒绝／超时） */
     private final Map<String, CompletableFuture<Boolean>> approvalDecisions = new ConcurrentHashMap<>();
 
@@ -91,6 +94,12 @@ public class AgentService {
     @PostConstruct
     public void init() {
         log.info("AgentService 初始化（工具注册由 ToolRegistry 自动扫描完成）");
+        // V1.1.0 C2/T2.3：重启恢复——从 DB 重建审批挂起队列（getPendingApprovals 返回内部引用，可直接回填）
+        var restored = executionService.restoreWaitingApprovals();
+        if (!restored.isEmpty()) {
+            approvalGateway.getPendingApprovals().putAll(restored);
+            log.info("[Checkpoint] 已恢复 {} 个审批挂起项", restored.size());
+        }
     }
 
     // ==================== 同步对话 ====================
@@ -365,6 +374,10 @@ public class AgentService {
                             case APPROVAL_REQUIRED -> {
                                 sink.next(AgentStreamResponse.approvalRequired(
                                         toolCallId, req.name(), req.arguments()));
+                                // V1.1.0 C2/T2.2：审批挂起落库（checkpoint）
+                                if (approval.getRequest() != null) {
+                                    executionService.recordWaitingApproval(approval.getRequest());
+                                }
                                 boolean approved = waitApprovalDecision(sink, toolCallId);
                                 if (approved) {
                                     result = toolRegistry.execute(req);
@@ -474,6 +487,8 @@ public class AgentService {
         if (result.getStatus() != ToolApprovalGateway.ApprovalStatus.APPROVED) {
             return "[审批失败] " + result.getMessage();
         }
+        // V1.1.0 C2/T2.2：审批终结落库
+        executionService.finalizeApproval(toolCallId, "approved");
         // 唤醒挂起的流式循环，由循环用原始请求原地执行（避免双重执行）
         boolean woke = completeApprovalDecision(toolCallId, true);
         return woke ? "已批准，Agent 继续执行" : "已批准（当前无挂起任务，重试时放行）";
@@ -481,6 +496,8 @@ public class AgentService {
 
     public String rejectAndNotify(String toolCallId, String reason) {
         var result = approvalGateway.reject(toolCallId, reason);
+        // V1.1.0 C2/T2.2：审批终结落库
+        executionService.finalizeApproval(toolCallId, "rejected");
         completeApprovalDecision(toolCallId, false);
         return "[审批拒绝] " + result.getMessage();
     }
@@ -580,8 +597,14 @@ public class AgentService {
                             toolsUsed.add(req.name());
                         }
                     }
-                    case APPROVAL_REQUIRED -> result = String.format(
-                            "[需要审批] 工具 '%s' 等待用户确认。toolCallId: %s", req.name(), toolCallId);
+                    case APPROVAL_REQUIRED -> {
+                        // V1.1.0 C2/T2.2：审批挂起落库（checkpoint）
+                        if (approval.getRequest() != null) {
+                            executionService.recordWaitingApproval(approval.getRequest());
+                        }
+                        result = String.format(
+                                "[需要审批] 工具 '%s' 等待用户确认。toolCallId: %s", req.name(), toolCallId);
+                    }
                     default -> result = String.format("[审批拒绝] 工具 '%s' 被用户拒绝执行。", req.name());
                 }
 
