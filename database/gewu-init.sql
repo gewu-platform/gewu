@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS chat_session (
     context_summary TEXT          DEFAULT NULL
 );
 COMMENT ON TABLE chat_session IS '聊天会话表 - 存储 AI 对话会话的基础信息';
+-- V1.1.0 C1/T1.1 父子会话: 父会话 ID（NULL = 顶层会话；派生流程见 ConversationService.deriveSession）
+ALTER TABLE chat_session ADD COLUMN IF NOT EXISTS parent_session_id VARCHAR(64) DEFAULT NULL;
+COMMENT ON COLUMN chat_session.parent_session_id IS '父会话 ID - 1=派生子会话归链\; NULL=顶层';
 COMMENT ON COLUMN chat_session.group_name IS '会话分组名（NULL=默认组，删组回落）';
 COMMENT ON COLUMN chat_session.context_summary IS '上下文滚动摘要（compact 产物，构建 LLM 上下文时置顶注入）';
 COMMENT ON COLUMN chat_session.is_deleted IS '是否删除 - 0:未删除/1:已删除（软删除）';
@@ -410,3 +413,41 @@ COMMENT ON COLUMN llm_provider.max_tokens IS '最大生成 token 数（chat 专�
 COMMENT ON COLUMN llm_provider.is_active IS '是否激活 - 同 provider_type 下至多一条 TRUE；chat 激活行覆盖 yml activeModel';
 CREATE UNIQUE INDEX IF NOT EXISTS uk_llm_provider_active_type
     ON llm_provider(provider_type) WHERE is_active;
+
+
+-- ==========================================
+-- V1.1.0 C2/T2.1: Agent 执行态表（checkpoint）- 审批挂起态落库，重启可恢复
+-- ==========================================
+CREATE TABLE IF NOT EXISTS agent_execution (
+    id            VARCHAR(64)     PRIMARY KEY,
+    session_id    VARCHAR(64)     DEFAULT NULL,
+    agent_id      VARCHAR(64)     DEFAULT NULL,
+    status        VARCHAR(32)     NOT NULL DEFAULT 'waiting_approval',
+    state_json    JSONB           DEFAULT NULL,
+    create_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE agent_execution IS 'Agent 执行态表（checkpoint）- 审批挂起/终结态留档，重启恢复依据';
+COMMENT ON COLUMN agent_execution.id IS '主键 = toolCallId（天然幂等）';
+COMMENT ON COLUMN agent_execution.status IS '执行态 - waiting_approval:待审批/approved:已通过/rejected:已拒绝/expired:已超时';
+CREATE INDEX IF NOT EXISTS idx_agent_execution_status ON agent_execution(status);
+
+
+-- ==========================================
+-- V1.1.0 C3/T3.2: MCP 服务器配置表 - 外部 MCP server 连接与启停（http_sse 传输）
+-- ==========================================
+CREATE TABLE IF NOT EXISTS mcp_server (
+    id            BIGSERIAL       PRIMARY KEY,
+    name          VARCHAR(64)     NOT NULL,
+    transport     VARCHAR(20)     NOT NULL DEFAULT 'http_sse',
+    endpoint      VARCHAR(500)    NOT NULL,
+    enabled       BOOLEAN         NOT NULL DEFAULT FALSE,
+    remark        VARCHAR(255)    DEFAULT NULL,
+    create_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_mcp_server_name UNIQUE (name)
+);
+COMMENT ON TABLE mcp_server IS 'MCP 服务器配置表（C3）- 外部 MCP server 连接配置，启用即桥接工具进 ToolRegistry';
+COMMENT ON COLUMN mcp_server.transport IS '传输类型 - http_sse:HTTP SSE（首版唯一支持；stdio 需代理转 SSE）';
+COMMENT ON COLUMN mcp_server.endpoint IS 'MCP server 端点 - http_sse 传输的 SSE URL';
+COMMENT ON COLUMN mcp_server.enabled IS '启用状态 - TRUE=启动时自动连接并桥接工具';
