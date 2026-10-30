@@ -36,6 +36,8 @@ public class McpServer implements Serializable {
 
     /** 备注（工具用途说明等） */
     private String remark;
+    /** v2.0.1 B1：工具白名单（JSON 数组或逗号分隔；空=不限） */
+    private String toolAllow;
 
     private LocalDateTime createTime;
 

@@ -44,6 +44,16 @@ public class McpClientHolder {
 
     /** 连接并桥接一个 server 的全部工具；返回桥接数（供启停接口展示） */
     public int connectAndBridge(String serverName, String endpoint) {
+        return connectAndBridge(serverName, endpoint, null);
+    }
+
+    /**
+     * R3/T1.1 白名单：连接并桥接指定工具（v2.0.1 B1）
+     *
+     * @param allowList 允许桥接的原始工具名清单；null 或空 = 不限（全量桥接，保持既有行为）
+     * @return 实际桥接的工具数
+     */
+    public int connectAndBridge(String serverName, String endpoint, java.util.List<String> allowList) {
         synchronized (this) {
             if (clients.containsKey(serverName)) {
                 return 0; // 已连接
@@ -56,7 +66,13 @@ public class McpClientHolder {
             // 构建即建连；checkHealth 强制校验可达性（不可达直接抛出，由调用方决定收敛路径）
             client.checkHealth();
             List<ToolSpecification> tools = client.listTools();
+            boolean limited = allowList != null && !allowList.isEmpty();
+            int bridged = 0;
             for (ToolSpecification t : tools) {
+                if (limited && !allowList.contains(t.name())) {
+                    log.info("[MCP] 工具被白名单过滤跳过：server={}, tool={}", serverName, t.name());
+                    continue;
+                }
                 String bridgedName = toolName(serverName, t.name());
                 String desc = (t.description() == null || t.description().isBlank())
                         ? "MCP tool " + t.name() + " (server: " + serverName + ")"
@@ -67,10 +83,12 @@ public class McpClientHolder {
                         .description(desc)
                         .build();
                 toolRegistry.registerDirect(renamed, passthrough(serverName, t.name()));
+                bridged++;
             }
             clients.put(serverName, client);
-            log.info("[MCP] 已连接并桥接：server={}, 工具数={}", serverName, tools.size());
-            return tools.size();
+            log.info("[MCP] 已连接并桥接：server={}, 桥接工具数={}/{}（白名单={}）",
+                    serverName, bridged, tools.size(), limited ? allowList.toString() : "不限");
+            return bridged;
         }
     }
 

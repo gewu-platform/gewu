@@ -61,6 +61,7 @@ public class PluginRegistryService {
         req.setEndpoint(row.getEndpoint());
         req.setEnabled(true);
         req.setRemark("由插件仓库安装：" + row.getName());
+        req.setToolAllow(row.getToolAllow());
         McpServer server;
         try {
             server = mcpServerService.create(req);

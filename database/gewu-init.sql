@@ -451,6 +451,8 @@ COMMENT ON TABLE mcp_server IS 'MCP 服务器配置表（C3）- 外部 MCP serve
 COMMENT ON COLUMN mcp_server.transport IS '传输类型 - http_sse:HTTP SSE（首版唯一支持；stdio 需代理转 SSE）';
 COMMENT ON COLUMN mcp_server.endpoint IS 'MCP server 端点 - http_sse 传输的 SSE URL';
 COMMENT ON COLUMN mcp_server.enabled IS '启用状态 - TRUE=启动时自动连接并桥接工具';
+ALTER TABLE mcp_server ADD COLUMN IF NOT EXISTS tool_allow TEXT DEFAULT NULL;
+COMMENT ON COLUMN mcp_server.tool_allow IS '工具白名单 - v2.0.1 B1：JSON 数组或逗号分隔；空=不限（全量桥接）';
 
 -- V2.0.0 R3/T3.2：插件仓库登记表（常用插件清单，一键安装即登记为 mcp_server）
 CREATE TABLE IF NOT EXISTS plugin_registry (

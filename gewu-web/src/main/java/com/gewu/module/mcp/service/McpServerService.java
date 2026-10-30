@@ -47,11 +47,42 @@ public class McpServerService {
         row.setEndpoint(req.getEndpoint());
         row.setEnabled(Boolean.TRUE.equals(req.getEnabled()));
         row.setRemark(req.getRemark());
+        row.setToolAllow(req.getToolAllow());
         mapper.insert(row);
         if (Boolean.TRUE.equals(row.getEnabled())) {
-            holder.connectAndBridge(row.getName(), row.getEndpoint());
+            holder.connectAndBridge(row.getName(), row.getEndpoint(), parseAllowList(req.getToolAllow()));
         }
         return row;
+    }
+
+
+    /**
+     * v2.0.1 B1：解析工具白名单。
+     * 支持 JSON 数组（["a","b"]）与逗号分隔（a,b）两种写法；空/解析失败=不限（null）。
+     */
+    private java.util.List<String> parseAllowList(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String t = raw.trim();
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+            java.util.List<String> arr = om.readValue(t, om.getTypeFactory().constructCollectionType(java.util.List.class, String.class));
+            if (arr != null && !arr.isEmpty()) {
+                return arr;
+            }
+            return null;
+        } catch (Exception ignore) {
+            // 非 JSON：按逗号分隔兜底
+        }
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String p : t.split(",")) {
+            String v = p.trim();
+            if (!v.isEmpty()) {
+                out.add(v);
+            }
+        }
+        return out.isEmpty() ? null : out;
     }
 
     public McpServer update(Long id, McpServerSaveRequest req) {
@@ -75,11 +106,12 @@ public class McpServerService {
           .set(McpServer::getEndpoint, req.getEndpoint())
           .set(McpServer::getEnabled, Boolean.TRUE.equals(req.getEnabled()))
           .set(McpServer::getRemark, req.getRemark())
+          .set(McpServer::getToolAllow, req.getToolAllow())
           .set(McpServer::getUpdateTime, LocalDateTime.now());
         mapper.update(null, uw);
         if (Boolean.TRUE.equals(req.getEnabled())) {
             try {
-                holder.connectAndBridge(req.getName(), req.getEndpoint());
+                holder.connectAndBridge(req.getName(), req.getEndpoint(), parseAllowList(req.getToolAllow()));
             } catch (Exception e) {
                 throw new BizException(400, "MCP server 连接失败（配置已保存，可修复端点后重新启用）：" + rootMessage(e));
             }
@@ -106,7 +138,7 @@ public class McpServerService {
         }
         if (!holder.isConnected(row.getName())) {
             try {
-                holder.connectAndBridge(row.getName(), row.getEndpoint());
+                holder.connectAndBridge(row.getName(), row.getEndpoint(), parseAllowList(row.getToolAllow()));
             } catch (Exception e) {
                 // V1.1.0 冒烟反馈：不可达端点返回友好错误而非裸 500
                 throw new BizException(400, "MCP server 连接失败：" + rootMessage(e));
@@ -162,7 +194,7 @@ public class McpServerService {
             qw.eq(McpServer::getEnabled, true);
             for (McpServer row : mapper.selectList(qw)) {
                 try {
-                    holder.connectAndBridge(row.getName(), row.getEndpoint());
+                    holder.connectAndBridge(row.getName(), row.getEndpoint(), parseAllowList(row.getToolAllow()));
                 } catch (Exception one) {
                     log.warn("[MCP] 启动桥接失败（server 不可达或未就绪）：server={}, {}",
                             row.getName(), one.getMessage());
