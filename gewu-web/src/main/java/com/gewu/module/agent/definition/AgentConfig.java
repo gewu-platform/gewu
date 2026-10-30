@@ -43,6 +43,7 @@ public class AgentConfig {
 
     /** T5 定义级默认检索条数（1-10，空 = 编排层默认 4） */
     private Integer ragTopK;
+
     // ==================== V2.0.0 R1 多 Agent 主从编排 ====================
 
     /** 角色：未设置=普通 Agent；master=可派发子 Agent */
@@ -50,4 +51,13 @@ public class AgentConfig {
 
     /** master 可调度的子 Agent id 清单（null/空=未配置派发目标） */
     private java.util.List<String> allowedWorkers;
+
+    // ==================== V2.0.0 R2 公共 Skill 库 ====================
+
+    /**
+     * 启用的公共 Skill id 清单（来自默认目录 .agents/skills 的目录名）。
+     * 对话构建 system prompt 时以「提示词包」形态注入指令段；
+     * 内容仅作提示词注入，不执行其中任何指令。
+     */
+    private java.util.List<String> skillIds;
 }

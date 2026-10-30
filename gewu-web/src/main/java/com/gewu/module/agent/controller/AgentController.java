@@ -272,6 +272,7 @@ public class AgentController {
                         .ragTopK(req.getRagTopK())
                         .role(req.getRole())
                         .allowedWorkers(req.getAllowedWorkers())
+                        .skillIds(req.getSkillIds())
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : true)
                 .build();
@@ -306,6 +307,7 @@ public class AgentController {
                         .ragTopK(req.getRagTopK())
                         .role(req.getRole())
                         .allowedWorkers(req.getAllowedWorkers())
+                        .skillIds(req.getSkillIds())
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : existing.getEnabled())
                 .creatorId(existing.getCreatorId())

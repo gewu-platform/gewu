@@ -66,4 +66,9 @@ public class AgentDefinitionRequest {
 
     /** master 允许派发的子 Agent id 清单 */
     private java.util.List<String> allowedWorkers;
+
+    // ==================== V2.0.0 R2 公共 Skill 库 ====================
+
+    /** 启用的公共 Skill id 清单（提示词包注入） */
+    private java.util.List<String> skillIds;
 }

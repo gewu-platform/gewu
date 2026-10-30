@@ -72,6 +72,9 @@ public class AgentService {
     // V1.1.0 C2：执行态持久化（checkpoint 叶子服务，仅依赖 Mapper 无循环依赖）
     private final AgentExecutionService executionService;
 
+    // V2.0.0 R2：公共 Skill 库（提示词包注入，目录只读）
+    private final com.gewu.module.agent.skill.SkillLibraryService skillLibrary;
+
     /** 挂起中的审批决策凭证：toolCallId → future（true=批准，false=拒绝／超时） */
     private final Map<String, CompletableFuture<Boolean>> approvalDecisions = new ConcurrentHashMap<>();
 
@@ -125,7 +128,10 @@ public class AgentService {
         List<ToolSpecification> specs = agentRegistry.getToolSpecifications(agentId);
         Boolean requireApproval = definition.getConfig() != null
                 ? definition.getConfig().getRequireApproval() : null;
-        return executeLoop(modelId, definition.getSystemPrompt(), userMessage, specs,
+        // R2：公共 Skill 指令段注入（提示词包，目录只读，不执行其中指令）
+        String enriched = skillLibrary.enrich(definition.getSystemPrompt(),
+                definition.getConfig() != null ? definition.getConfig().getSkillIds() : null);
+        return executeLoop(modelId, enriched, userMessage, specs,
                 maxIterations, agentId, null, requireApproval, userId);
     }
 
@@ -253,7 +259,9 @@ public class AgentService {
             AgentResult result = executeLoop(
                     def.getConfig() != null && def.getConfig().getModelId() != null
                             ? def.getConfig().getModelId() : langChain4jConfig.getActiveModel(),
-                    def.getSystemPrompt(), task,
+                    // R2：子 Agent 亦可携带公共 Skill 指令段
+                    skillLibrary.enrich(def.getSystemPrompt(),
+                            def.getConfig() != null ? def.getConfig().getSkillIds() : null), task,
                     agentRegistry.getToolSpecifications(workerAgentId),
                     def.getConfig() != null && def.getConfig().getMaxIterations() != null
                             ? def.getConfig().getMaxIterations() : MAX_ITERATIONS,
@@ -296,6 +304,9 @@ public class AgentService {
             if (systemPromptFinal == null || systemPromptFinal.isBlank()) {
                 systemPromptFinal = definition.getSystemPrompt();
             }
+            // R2：公共 Skill 指令段注入（提示词包）
+            systemPromptFinal = skillLibrary.enrich(systemPromptFinal,
+                    definition.getConfig() != null ? definition.getConfig().getSkillIds() : null);
             if (definition.getConfig() != null) {
                 agentRequireApproval = definition.getConfig().getRequireApproval();
                 // T5 定义级知识库绑定：chat 请求未指定文档时回退使用
