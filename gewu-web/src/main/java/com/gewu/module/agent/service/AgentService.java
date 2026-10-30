@@ -668,6 +668,20 @@ public class AgentService {
         List<AgentIteration> iterations = new ArrayList<>();
         List<String> toolsUsed = new ArrayList<>();
         AtomicInteger toolCallCounter = new AtomicInteger(0);
+        // R1/F-1 子会话落库：对齐流式路径（sessionMode 落 user/assistant 消息+工具轨迹+统计）
+        boolean sessionMode = sessionId != null && !sessionId.isBlank();
+        List<Map<String, Object>> toolTrace = new ArrayList<>();
+        AtomicInteger totalInputTokens = new AtomicInteger(0);
+        AtomicInteger totalOutputTokens = new AtomicInteger(0);
+        if (sessionMode) {
+            try {
+                chatMessageService.saveMessage(sessionId, "user", userMessage, "text", null,
+                        modelId, userMessage.length() / 4, 0, null,
+                        UUID.randomUUID().toString(), userId);
+            } catch (Exception e) {
+                log.warn("[Dispatch] 子会话用户消息落库失败（继续执行）：{}", e.getMessage());
+            }
+        }
 
         for (int i = 0; i < Math.max(1, maxIterations); i++) {
             long startTime = System.currentTimeMillis();
@@ -679,16 +693,25 @@ public class AgentService {
             long latency = System.currentTimeMillis() - startTime;
 
             AiMessage aiMessage = response.aiMessage();
+            int inputTokens = estimateTokens(messages);
+            int outputTokens = aiMessage.text() != null ? aiMessage.text().length() / 4 : 0;
+            totalInputTokens.addAndGet(inputTokens);
+            totalOutputTokens.addAndGet(outputTokens);
             llmMonitorService.asyncRecordCall(
                     sessionId, modelId, agentId != null ? "agent:" + agentId : "agent-smart",
-                    estimateTokens(messages),
-                    aiMessage.text() != null ? aiMessage.text().length() / 4 : 0,
+                    inputTokens,
+                    outputTokens,
                     latency, "success", null,
                     truncate(userMessage, 200), truncate(aiMessage.text(), 500), userId);
 
             if (!aiMessage.hasToolExecutionRequests()) {
+                String finalText = aiMessage.text() != null ? aiMessage.text() : "";
+                if (sessionMode) {
+                    persistAssistantExchange(sessionId, userId, modelId, finalText,
+                            totalInputTokens.get(), totalOutputTokens.get(), toolTrace);
+                }
                 return AgentResult.builder()
-                        .finalAnswer(aiMessage.text() != null ? aiMessage.text() : "")
+                        .finalAnswer(finalText)
                         .iterations(iterations)
                         .iterationCount(i + 1)
                         .toolsUsed(toolsUsed)
@@ -738,11 +761,25 @@ public class AgentService {
                 it.setToolInput(req.arguments());
                 it.setObservation(result);
                 iterations.add(it);
+                // R1/F-1：工具轨迹留档（与流式路径一致）
+                if (sessionMode) {
+                    Map<String, Object> trace = new HashMap<>();
+                    trace.put("iteration", i + 1);
+                    trace.put("tool", req.name());
+                    trace.put("input", parseArgs(req.arguments()));
+                    trace.put("result", truncate(result, 500));
+                    toolTrace.add(trace);
+                }
 
                 messages.add(ToolExecutionResultMessage.from(req, result));
             }
         }
 
+        if (sessionMode) {
+            persistAssistantExchange(sessionId, userId, modelId,
+                    "已达最大迭代次数（" + maxIterations + "），工具调用中止。",
+                    totalInputTokens.get(), totalOutputTokens.get(), toolTrace);
+        }
         return AgentResult.builder()
                 .finalAnswer("已达最大迭代次数（" + maxIterations + "），工具调用中止。")
                 .iterations(iterations)
