@@ -82,6 +82,99 @@ public class ConversationService {
         return sessionId;
     }
 
+
+    /**
+     * V1.1.0 C1/T1.2：派生子会话——克隆父 systemPrompt + context_summary 作为起点，父子独立演进。
+     * 编排树仅一层：父会话已是派生子会话时禁止再派生（对齐 V2.0.0 Non-Goals）。
+     */
+    @Transactional
+    public String deriveSession(String parentSessionId, Long userId) {
+        ChatSession parent = sessionService.getSession(parentSessionId);
+        if (parent == null) {
+            throw new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "父会话不存在：" + parentSessionId);
+        }
+        if (StringUtils.hasText(parent.getParentSessionId())) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "仅支持一层派生：当前会话已是子会话");
+        }
+        // 无压缩摘要时，取最近 N 条未压缩消息做机械摘录（预算截断）作为派生起点
+        String summary = parent.getContextSummary();
+        if (!StringUtils.hasText(summary)) {
+            summary = buildRecentDigest(parentSessionId, 10, 2000);
+        }
+        String childId = createSession(parent.getMode(), parent.getModel(), parent.getSystemPrompt(), userId);
+        ChatSession child = sessionService.getSession(childId);
+        child.setParentSessionId(parentSessionId);
+        if (StringUtils.hasText(summary)) {
+            child.setContextSummary(summary);
+        }
+        sessionService.updateSession(child);
+        log.info("派生子会话成功：childId={}, parentId={}, userId={}", childId, parentSessionId, userId);
+        return childId;
+    }
+
+    /**
+     * V1.1.0 C1/T1.2：最近消息机械摘录（无 context_summary 时的派生起点）
+     */
+    private String buildRecentDigest(String sessionId, int limit, int budgetChars) {
+        List<ChatMessage> all = messageService.getMessagesBySessionId(sessionId);
+        if (all == null || all.isEmpty()) {
+            return null;
+        }
+        int from = Math.max(0, all.size() - limit);
+        StringBuilder sb = new StringBuilder();
+        for (ChatMessage m : all.subList(from, all.size())) {
+            if (m.getCompressed() != null && m.getCompressed() == 1) {
+                continue;
+            }
+            String role = "user".equals(m.getRole()) ? "用户" : "助手";
+            String c = m.getContent() == null ? "" : m.getContent().replaceAll("\\s+", " ").trim();
+            if (c.isEmpty()) {
+                continue;
+            }
+            if (c.length() > 200) {
+                c = c.substring(0, 200) + "…";
+            }
+            sb.append(role).append("：").append(c).append('\n');
+            if (sb.length() > budgetChars) {
+                break;
+            }
+        }
+        String s = sb.toString().trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    /**
+     * V1.1.0 C1/T1.4：子会话完成后自动回传结果摘要到父会话（只向上一层，防循环）。
+     * 落库为 user 角色 + 「[子会话结果]」前缀：历史构建只映射 user/assistant，
+     * user 角色确保父会话下一轮 LLM 上下文自然包含结论（system 角色会被历史构建跳过）。
+     * 回传消息不走 saveExchangeAndStats，天然不触发对祖父会话的再回传。
+     */
+    public void propagateToParent(String childSessionId, String finalAnswer) {
+        try {
+            ChatSession child = sessionService.getSession(childSessionId);
+            if (child == null || !StringUtils.hasText(child.getParentSessionId())) {
+                return;
+            }
+            ChatSession parent = sessionService.getSession(child.getParentSessionId());
+            if (parent == null) {
+                return;
+            }
+            String digest = finalAnswer == null ? "" : finalAnswer.trim();
+            if (digest.length() > 2000) {
+                digest = digest.substring(0, 2000) + "…（已截断）";
+            }
+            String title = StringUtils.hasText(child.getRemark()) ? child.getRemark() : childSessionId;
+            String content = "[子会话结果] 来自子会话「" + title + "」：" + digest;
+            messageService.saveMessage(parent.getId(), "user", content, "text", null,
+                    child.getModel(), content.length() / 4, 0, null,
+                    UUID.randomUUID().toString(), null);
+            sessionService.incrementMessageCount(parent.getId());
+            log.info("子会话结果已回传父会话：child={}, parent={}", childSessionId, parent.getId());
+        } catch (Exception e) {
+            log.warn("子会话结果回传失败（不阻断主流程）：child={}, err={}", childSessionId, e.getMessage());
+        }
+    }
+
     /**
      * 发送文本消息并获取回复（支持指定模型）
      */
@@ -271,6 +364,8 @@ public class ConversationService {
 
         log.info("对话完成：sessionId={}, latency={}ms, in={}, out={}",
                 sessionId, latency, inputTokens, outputTokens);
+        // V1.1.0 C1/T1.4：子会话完成后自动回传结果摘要到父会话（sync/stream 两路汇合点，只向上一层）
+        propagateToParent(sessionId, replyText);
         return replyText;
     }
 

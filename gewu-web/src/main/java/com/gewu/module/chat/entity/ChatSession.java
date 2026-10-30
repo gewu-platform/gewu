@@ -86,6 +86,8 @@ public class ChatSession implements Serializable {
      * T3 上下文压缩：滚动摘要（compact 产物；构建 LLM 上下文时置顶注入）
      */
     private String contextSummary;
+    /** V1.1.0 C1: 父会话 ID（NULL = 顶层会话） */
+    private String parentSessionId;
 
     /**
      * 备注

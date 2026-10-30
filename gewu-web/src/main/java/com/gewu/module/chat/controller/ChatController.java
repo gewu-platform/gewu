@@ -273,6 +273,18 @@ public class ChatController {
     }
 
     /**
+     * V1.1.0 C1/T1.2：派生子会话——克隆父 systemPrompt + 上下文摘要为起点，父子独立演进
+     */
+    @PostMapping("/session/{sessionId}/derive")
+    public R<SessionResponseDTO> deriveSession(@PathVariable String sessionId) {
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        conversationService.ensureAccessible(sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
+        String childId = conversationService.deriveSession(sessionId, currentUserId);
+        log.info("派生子会话成功：parent={}, child={}", sessionId, childId);
+        return R.success("子会话已创建", SessionResponseDTO.of(childId, null));
+    }
+
+    /**
      * T2.2 会话归组 / 移组（groupName=null 或空 = 移出分组）
      */
     @PatchMapping("/session/{sessionId}/group")
