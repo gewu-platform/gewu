@@ -451,3 +451,27 @@ COMMENT ON TABLE mcp_server IS 'MCP 服务器配置表（C3）- 外部 MCP serve
 COMMENT ON COLUMN mcp_server.transport IS '传输类型 - http_sse:HTTP SSE（首版唯一支持；stdio 需代理转 SSE）';
 COMMENT ON COLUMN mcp_server.endpoint IS 'MCP server 端点 - http_sse 传输的 SSE URL';
 COMMENT ON COLUMN mcp_server.enabled IS '启用状态 - TRUE=启动时自动连接并桥接工具';
+
+-- V2.0.0 R3/T3.2：插件仓库登记表（常用插件清单，一键安装即登记为 mcp_server）
+CREATE TABLE IF NOT EXISTS plugin_registry (
+    id            BIGSERIAL       PRIMARY KEY,
+    code          VARCHAR(64)     NOT NULL,
+    name          VARCHAR(128)    NOT NULL,
+    description   VARCHAR(500)    DEFAULT NULL,
+    transport     VARCHAR(20)     NOT NULL DEFAULT 'http_sse',
+    endpoint      VARCHAR(500)    NOT NULL,
+    tool_allow    TEXT            DEFAULT NULL,
+    builtin       BOOLEAN         NOT NULL DEFAULT FALSE,
+    installed     BOOLEAN         NOT NULL DEFAULT FALSE,
+    installed_name VARCHAR(64)    DEFAULT NULL,
+    create_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_plugin_registry_code UNIQUE (code)
+);
+COMMENT ON TABLE plugin_registry IS '插件仓库登记表（R3）- 常用插件清单（首版形态=外部 MCP server）；一键安装即登记进 mcp_server 并桥接工具';
+COMMENT ON COLUMN plugin_registry.code IS '插件编码 - 仓库内唯一（如 filesystem/fetch/time）';
+COMMENT ON COLUMN plugin_registry.endpoint IS '插件端点 - http_sse 传输的 SSE URL';
+COMMENT ON COLUMN plugin_registry.tool_allow IS '工具白名单 - JSON 数组；空=不限（全部桥接）';
+COMMENT ON COLUMN plugin_registry.builtin IS '内置样例 - TRUE=系统预置不可删除';
+COMMENT ON COLUMN plugin_registry.installed IS '安装状态 - TRUE=已登记进 mcp_server';
+COMMENT ON COLUMN plugin_registry.installed_name IS '安装后的 mcp_server 名称 - 用于反查与卸载';
