@@ -123,6 +123,11 @@ gewu:
       dynamic: ${GEWU_SANDBOX_DYNAMIC:direct}
       external: ${GEWU_SANDBOX_EXTERNAL:sandbox}
       dangerous: ${GEWU_SANDBOX_DANGEROUS:sandbox}
+  # V2.1.0 B2：沙箱运行器（独立子 JVM 执行；总开关 false 时 sandboxAvailable 恒 false，走 fail-closed）
+  runner:
+    enabled: ${GEWU_SANDBOX_RUNNER_ENABLED:true}
+    timeout-ms: ${GEWU_SANDBOX_TIMEOUT_MS:5000}
+    xmx: ${GEWU_SANDBOX_XMX:256m}
   # V2.0.0 R2/T2.5：公共 Skill 库目录（环境变量 GEWU_SKILLS_DIR 可覆盖）
   skills:
     dir: ${GEWU_SKILLS_DIR:C:\Users\25333\.agents\skills}

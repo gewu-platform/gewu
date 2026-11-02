@@ -43,6 +43,10 @@ public class ToolRegistry {
     @org.springframework.beans.factory.annotation.Autowired
     private SandboxPolicy sandboxPolicy;
 
+    /** V2.1.0 B2：沙箱运行器（可选依赖；未装配/未启用时为 null，走 fail-closed） */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.gewu.module.agent.sandbox.SandboxRunner sandboxRunner;
+
     /**
      * T7：容器就绪后自动扫描 tools 包的 @Component/@Service Bean 并注册。
      * ApplicationReadyEvent 时机：所有 Bean 已就绪，避免 @PostConstruct 期间
@@ -127,6 +131,24 @@ public class ToolRegistry {
             return String.format("工具 '%s' 因风险策略被拒绝执行（风险级=%s，策略=%s，沙箱可用=%s）。",
                     request.name(), risk.label(), sandboxPolicy.policyFor(risk),
                     sandboxPolicy.isSandboxAvailable() ? "是" : "否");
+        }
+
+        // V2.1.0 B2/T2.1：策略要求沙箱 → 路由到子进程执行（SandboxRunner）
+        if (sandboxPolicy != null && sandboxPolicy.requireSandbox(risk)) {
+            if (sandboxRunner == null) {
+                log.warn("[Sandbox] 策略要求沙箱但运行器未装配：tool={}", request.name());
+                return String.format("工具 '%s' 因沙箱运行器未装配被拒绝执行（风险级=%s）。",
+                        request.name(), risk.label());
+            }
+            Map<String, Object> sr = sandboxRunner.runTool(request.name(), request.arguments());
+            String st = String.valueOf(sr.get("status"));
+            if ("ok".equals(st)) {
+                return String.valueOf(sr.get("result"));
+            }
+            log.warn("[Sandbox] 沙箱执行未成功：tool={}, status={}, reason={}",
+                    request.name(), st, sr.get("reason"));
+            return String.format("工具 '%s' 沙箱执行未成功（状态=%s，原因=%s）。",
+                    request.name(), st, sr.get("reason"));
         }
         try {
             return executor.execute(request, null);

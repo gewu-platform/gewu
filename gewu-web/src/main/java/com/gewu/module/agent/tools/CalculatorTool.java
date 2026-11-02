@@ -29,6 +29,11 @@ public class CalculatorTool {
             @P("要计算的数学表达式，例如 '2 + 2'、'(100 - 25) * 0.8'、'2^10'")
             String expression) {
         log.debug("calculator 执行：{}", expression);
+        // V2.1.0 B3/T3.1：受限表达式——仅数字与算术字符，阻断 Java.type/标识符/多语句注入
+        String vErr = validateExpression(expression);
+        if (vErr != null) {
+            return vErr;
+        }
         try {
             // 幂运算：JS 的 ** 与 ^ 兼容处理（LLM 常输出 ^）
             String js = expression.replaceAll("\\^", "**");
@@ -37,5 +42,27 @@ public class CalculatorTool {
         } catch (Exception e) {
             return "计算失败：" + e.getMessage();
         }
+    }
+
+    /**
+     * V2.1.0 B3/T3.1：受限表达式校验。
+     * 白名单字符：数字、算术运算符、括号、幂(^)、小数点、空白、科学计数 e/E；
+     * 阻断字母标识符（Java.type/Runtime 逃逸）、分号（多语句注入）、反引号等；
+     * T3.2：长度上限 200 字符。返回 null=通过，否则返回错误文案。
+     */
+    private static String validateExpression(String expression) {
+        if (expression == null || expression.isBlank()) {
+            return "计算失败：表达式为空";
+        }
+        if (expression.length() > 200) {
+            return "计算失败：表达式过长（上限 200 字符）";
+        }
+        String allowed = "0123456789+-*/().%^ \t\r\neE";
+        for (char c : expression.toCharArray()) {
+            if (allowed.indexOf(c) < 0) {
+                return "计算失败：表达式含不允许的字符（仅支持数字与算术运算符）";
+            }
+        }
+        return null;
     }
 }
