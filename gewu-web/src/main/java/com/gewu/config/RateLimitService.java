@@ -1,5 +1,6 @@
 package com.gewu.config;
 
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 全局精确限流需换 Redis 实现（已记入 ROADMAP V2.5.0）。</p>
  */
 @Slf4j
+@Setter
 @Component
 public class RateLimitService {
 

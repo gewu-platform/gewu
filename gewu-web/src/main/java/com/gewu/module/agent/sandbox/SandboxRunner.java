@@ -103,7 +103,13 @@ public class SandboxRunner {
                 return fail("calculator 入参缺失（expression）");
             }
             // 与 CalculatorTool 同语义：^ → **
-            return rawRun("js", expression.replaceAll("\\^", "**"));
+            // V2.3.0 B1：与直执行路径同源——复用 CalculatorTool.rewritePowerOps
+            // （Nashorn 不支持 ** 运算符，旧实现是坏实现）
+            String rewritten = com.gewu.module.agent.tools.CalculatorTool.rewritePowerOps(expression);
+            if (rewritten.startsWith("计算失败：")) {
+                return fail(rewritten);
+            }
+            return rawRun("js", rewritten);
         }
         return fail("工具 '" + toolName + "' 暂无沙箱适配器（首版仅 calculator）");
     }

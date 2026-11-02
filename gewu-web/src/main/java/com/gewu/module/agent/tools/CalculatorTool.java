@@ -35,10 +35,16 @@ public class CalculatorTool {
             return vErr;
         }
         try {
-            // 幂运算：JS 的 ** 与 ^ 兼容处理（LLM 常输出 ^）
-            String js = expression.replaceAll("\\^", "**");
+            // V2.3.0 B1：Nashorn 不支持 ** 幂运算符（旧实现 replaceAll("^","**") 会语法报错），
+            // 先把 a^b 形式改写为 Math.pow(a,b)——Math.pow 在受限白名单下可用
+            String js = rewritePowerOps(expression);
+            if (js.startsWith("计算失败：")) {
+                // 改写阶段的结构性错误（括号不匹配/缺操作数），直接返回不进 eval
+                return js;
+            }
             Object result = engine.eval(js);
-            return String.valueOf(result);
+            // V2.3.0 B1：Math.pow 等返回浮点，整数结果去掉 .0 尾（1024.0 → 1024）
+            return stripTrailingDotZero(String.valueOf(result));
         } catch (Exception e) {
             return "计算失败：" + e.getMessage();
         }
@@ -64,5 +70,80 @@ public class CalculatorTool {
             }
         }
         return null;
+    }
+
+    /**
+     * V2.3.0 B1：幂运算改写——把 ^ 形式改写为 Math.pow 调用。
+     * Nashorn 不支持 ** 运算符；Math.pow 是白名单内的合法标识符，
+     * 因此收紧白名单时同步放行 Math.pow。
+     */
+    public static String rewritePowerOps(String expression) {
+        // 简单配对扫描：a^b → Math.pow(a,b)，支持嵌套（从最内层开始）
+        String s = expression;
+        int guard = 0;
+        while (s.indexOf('^') >= 0 && guard++ < 32) {
+            int idx = s.indexOf('^');
+            int end = s.length();
+            // 左操作数：从 ^ 向左扫描
+            int ls = idx - 1;
+            if (ls < 0) { return "计算失败：^ 缺少左操作数"; }
+            if (s.charAt(ls) == ')') {
+                int depth = 0;
+                while (ls >= 0) {
+                    char ch = s.charAt(ls);
+                    if (ch == ')') depth++;
+                    else if (ch == '(') { depth--; if (depth == 0) break; }
+                    ls--;
+                }
+                if (ls < 0) { return "计算失败：^ 左括号不匹配"; }
+            } else {
+                while (ls >= 0) {
+                    char ch = s.charAt(ls);
+                    if (Character.isDigit(ch) || ch == '.') { ls--; continue; }
+                    if (ch == 'e' || ch == 'E') {
+                        char prev = s.charAt(Math.max(0, ls - 1));
+                        if (Character.isDigit(prev)) { ls--; continue; }
+                    }
+                    break;
+                }
+                ls++;
+            }
+            String left = s.substring(ls, idx).trim();
+            // 右操作数：从 ^ 向右扫描
+            int rs = idx + 1;
+            if (rs >= end) { return "计算失败：^ 缺少右操作数"; }
+            if (s.charAt(rs) == '(') {
+                int depth = 0;
+                int i = rs;
+                while (i < end) {
+                    char ch = s.charAt(i);
+                    if (ch == '(') depth++;
+                    else if (ch == ')') { depth--; if (depth == 0) { i++; break; } }
+                    i++;
+                }
+                if (depth != 0) { return "计算失败：^ 右括号不匹配"; }
+                rs = i;
+            } else {
+                while (rs < end) {
+                    char ch = s.charAt(rs);
+                    if (Character.isDigit(ch) || ch == '.') { rs++; continue; }
+                    if (ch == 'e' || ch == 'E') {
+                        char next = s.charAt(Math.min(end - 1, rs + 1));
+                        if (Character.isDigit(next)) { rs++; continue; }
+                    }
+                    break;
+                }
+            }
+            String right = s.substring(idx + 1, rs).trim();
+            s = s.substring(0, ls) + "Math.pow(" + left + "," + right + ")" + s.substring(rs);
+        }
+        return s;
+    }
+    /**
+     * V2.3.0 B1：整数浮点结果归一——尾部恰为 ".0" 时去掉（1024.0 → 1024）。
+     * 仅处理精确 .0 尾，不影响 60.00000000000001 这类真实小数。
+     */
+    private static String stripTrailingDotZero(String s) {
+        return (s != null && s.endsWith(".0")) ? s.substring(0, s.length() - 2) : s;
     }
 }
