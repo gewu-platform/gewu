@@ -150,8 +150,20 @@ public class ToolRegistry {
             return String.format("工具 '%s' 沙箱执行未成功（状态=%s，原因=%s）。",
                     request.name(), st, sr.get("reason"));
         }
+        // V2.1.0 B4/T4.2：降级直执行——安全边界已降低，必须强告警（ERROR 级，不可静默）
+        if (sandboxPolicy != null && sandboxPolicy.isDegradedDirect(risk)) {
+            log.error("[Sandbox] 【安全降级】策略要求沙箱但沙箱不可用，已按 on-unavailable=allow-direct 直执行："
+                    + "tool={}, risk={}, policy={}, 建议尽快恢复沙箱或改回 reject",
+                    request.name(), risk.name(), sandboxPolicy.policyFor(risk));
+        }
+        long _t0 = System.currentTimeMillis();
         try {
-            return executor.execute(request, null);
+            String _out = executor.execute(request, null);
+            // T4.1：全量执行日志（工具名/耗时/结果长度）
+            log.info("[Sandbox] 工具直执行完成：tool={}, risk={}, elapsedMs={}ms, outLen={}",
+                    request.name(), risk.name(), System.currentTimeMillis() - _t0,
+                    _out == null ? 0 : _out.length());
+            return _out;
         } catch (Exception e) {
             log.error("工具执行异常：{}", request.name(), e);
             return String.format("工具 '%s' 执行异常：%s", request.name(), e.getMessage());

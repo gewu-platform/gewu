@@ -123,6 +123,8 @@ gewu:
       dynamic: ${GEWU_SANDBOX_DYNAMIC:direct}
       external: ${GEWU_SANDBOX_EXTERNAL:sandbox}
       dangerous: ${GEWU_SANDBOX_DANGEROUS:sandbox}
+      # V2.1.0 B4/T4.2：沙箱不可用时降级策略（reject=拒绝[默认] / allow-direct=直执行但强告警）
+      on-unavailable: ${GEWU_SANDBOX_ON_UNAVAILABLE:reject}
   # V2.1.0 B2：沙箱运行器（独立子 JVM 执行；总开关 false 时 sandboxAvailable 恒 false，走 fail-closed）
   runner:
     enabled: ${GEWU_SANDBOX_RUNNER_ENABLED:true}

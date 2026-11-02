@@ -67,6 +67,9 @@ public class SandboxRunner {
 
     private volatile String lastHealthNote = "未自检";
 
+    /** V2.1.0 B4/T4.1：最近一次沙箱工具调用名（日志关联用） */
+    private volatile String lastToolName = null;
+
     /** fat-jar 模式下物化出的完整子进程 classpath（惰性构建，缓存复用） */
     private volatile String childClasspath;
 
@@ -87,6 +90,7 @@ public class SandboxRunner {
      * 无适配器返回 error（调用方 fail-closed）。
      */
     public Map<String, Object> runTool(String toolName, String argumentsJson) {
+        this.lastToolName = toolName;
         if ("calculator".equals(toolName)) {
             String expression = extractExpression(argumentsJson);
             if (expression == null || expression.isBlank()) {
@@ -409,6 +413,13 @@ public class SandboxRunner {
 
     private Map<String, Object> result(String status, Object result, String reason,
                                        long elapsedMs, Integer exitCode) {
+        // V2.1.0 B4/T4.1：沙箱调用全量日志（工具名/耗时/退出码/是否超时）
+        if (log.isInfoEnabled()) {
+            log.info("[Sandbox] 调用留档：tool={}, status={}, elapsedMs={}ms, exitCode={}, timeout={}, reason={}",
+                    lastToolName == null ? "js-direct" : lastToolName,
+                    status, elapsedMs, exitCode, "timeout".equals(status),
+                    reason == null ? "-" : reason);
+        }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("status", status);
         if (result != null) {
