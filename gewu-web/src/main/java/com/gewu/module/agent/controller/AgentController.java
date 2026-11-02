@@ -53,6 +53,9 @@ public class AgentController {
     private final AgentRegistry agentRegistry;
     private final ToolRegistry toolRegistry;
     private final ChatSessionService chatSessionService;
+
+    /** V2.4.0 C2：审计日志（管理面操作留痕；落库失败不影响业务） */
+    private final com.gewu.module.monitor.service.AuditService auditService;
     private final com.gewu.module.monitor.service.UsageQuotaService usageQuotaService;
 
     // ==================== 同步对话 ====================
@@ -250,7 +253,7 @@ public class AgentController {
      * 创建定义
      */
     @PostMapping("/definitions")
-    public R<AgentDefinition> createDefinition(@RequestBody AgentDefinitionRequest req) {
+    public R<AgentDefinition> createDefinition(@RequestBody AgentDefinitionRequest req, jakarta.servlet.http.HttpServletRequest request) {
         if (req.getName() == null || req.getName().isBlank()) {
             return R.error(400, "Agent 名称不能为空");
         }
@@ -276,6 +279,10 @@ public class AgentController {
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : true)
                 .build();
+        // V2.4.0 C2：审计——Agent 定义创建
+        auditService.record(request, "agent.create", "agent_definition", definition.getId(),
+                java.util.Map.of("name", definition.getName(), "role",
+                        definition.getConfig() == null ? null : definition.getConfig().getRole()), true);
         return R.success(agentRegistry.register(definition));
     }
 
@@ -283,7 +290,7 @@ public class AgentController {
      * 更新定义
      */
     @PutMapping("/definitions")
-    public R<AgentDefinition> updateDefinition(@RequestBody AgentDefinitionRequest req) {
+    public R<AgentDefinition> updateDefinition(@RequestBody AgentDefinitionRequest req, jakarta.servlet.http.HttpServletRequest request) {
         if (req.getId() == null || agentRegistry.get(req.getId()) == null) {
             return R.error(400, "Agent 不存在: " + req.getId());
         }
@@ -312,6 +319,9 @@ public class AgentController {
                 .enabled(req.getEnabled() != null ? req.getEnabled() : existing.getEnabled())
                 .creatorId(existing.getCreatorId())
                 .build();
+        // V2.4.0 C2：审计——Agent 定义更新
+        auditService.record(request, "agent.update", "agent_definition", definition.getId(),
+                java.util.Map.of("name", definition.getName()), true);
         return R.success(agentRegistry.update(definition));
     }
 
@@ -319,11 +329,13 @@ public class AgentController {
      * 删除定义
      */
     @DeleteMapping("/definitions/{id}")
-    public R<Void> deleteDefinition(@PathVariable String id) {
+    public R<Void> deleteDefinition(@PathVariable String id, jakarta.servlet.http.HttpServletRequest request) {
         if (agentRegistry.get(id) == null) {
             return R.error(400, "Agent 不存在: " + id);
         }
         agentRegistry.delete(id);
+        // V2.4.0 C2：审计——Agent 定义删除
+        auditService.record(request, "agent.delete", "agent_definition", id, null, true);
         return R.success();
     }
 
@@ -347,8 +359,11 @@ public class AgentController {
      * 启用/禁用
      */
     @PutMapping("/definitions/{id}/enabled")
-    public R<Void> setEnabled(@PathVariable String id, @RequestParam boolean enabled) {
+    public R<Void> setEnabled(@PathVariable String id, @RequestParam boolean enabled, jakarta.servlet.http.HttpServletRequest request) {
         if (agentRegistry.get(id) == null) {
+        // V2.4.0 C2：审计——Agent 启停
+        auditService.record(request, enabled ? "agent.enable" : "agent.disable", "agent_definition", id,
+                java.util.Map.of("enabled", enabled), true);
             return R.error(400, "Agent 不存在: " + id);
         }
         agentRegistry.setEnabled(id, enabled);

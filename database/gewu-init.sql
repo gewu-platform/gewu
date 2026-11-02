@@ -477,3 +477,23 @@ COMMENT ON COLUMN plugin_registry.tool_allow IS '工具白名单 - JSON 数组�
 COMMENT ON COLUMN plugin_registry.builtin IS '内置样例 - TRUE=系统预置不可删除';
 COMMENT ON COLUMN plugin_registry.installed IS '安装状态 - TRUE=已登记进 mcp_server';
 COMMENT ON COLUMN plugin_registry.installed_name IS '安装后的 mcp_server 名称 - 用于反查与卸载';
+-- V2.4.0 C2：审计日志表（管理面操作留痕）
+CREATE TABLE IF NOT EXISTS audit_log (
+    id            BIGSERIAL       PRIMARY KEY,
+    actor         VARCHAR(64)     DEFAULT NULL,
+    action        VARCHAR(64)     NOT NULL,
+    target_type   VARCHAR(64)     DEFAULT NULL,
+    target_id     VARCHAR(128)    DEFAULT NULL,
+    detail        TEXT            DEFAULT NULL,
+    ip            VARCHAR(64)     DEFAULT NULL,
+    success       SMALLINT        DEFAULT 1,
+    create_time   TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE audit_log IS '审计日志表（V2.4.0 C2）- 管理面操作留痕：谁在何时对什么做了什么';
+COMMENT ON COLUMN audit_log.actor IS '操作者 username（匿名/系统为 null 或 system）';
+COMMENT ON COLUMN audit_log.action IS '动作 - 如 agent.create / plugin.install / risk.set';
+COMMENT ON COLUMN audit_log.target_type IS '对象类型 - agent_definition / plugin / mcp_server / tool';
+COMMENT ON COLUMN audit_log.target_id IS '对象标识';
+COMMENT ON COLUMN audit_log.detail IS '变更摘要（前后关键值，不含密钥明文）';
+COMMENT ON COLUMN audit_log.ip IS '来源 IP（优先 X-Forwarded-For 首地址）';
+COMMENT ON COLUMN audit_log.success IS '是否成功 - 1=成功 0=失败';

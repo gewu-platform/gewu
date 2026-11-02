@@ -39,6 +39,9 @@ public class ToolRiskController {
     private final ToolRegistry toolRegistry;
     private final SandboxPolicy sandboxPolicy;
 
+    /** V2.4.0 C2：审计日志（管理面操作留痕；落库失败不影响业务） */
+    private final com.gewu.module.monitor.service.AuditService auditService;
+
     /** 沙箱运行器（可选；B2 未装配时仅保留 B1 能力） */
     @Autowired(required = false)
     private SandboxRunner sandboxRunner;
@@ -51,13 +54,14 @@ public class ToolRiskController {
         data.put("policy", sandboxPolicy.snapshot());
         data.put("sandboxHealthy", sandboxRunner != null && sandboxRunner.isHealthy());
         data.put("sandboxHealthNote", sandboxRunner != null ? sandboxRunner.getLastHealthNote() : "未装配");
+        // V2.4.0 C2：审计——工具风险级调整（安全相关操作，必留痕）
         return R.success(data);
     }
 
     /** 设置某工具的风险级（仅对已注册工具生效） */
     @PostMapping("/{toolName}")
     public R<Map<String, Object>> setRisk(@PathVariable String toolName,
-                                          @RequestBody(required = false) Map<String, String> body) {
+                                          @RequestBody(required = false) Map<String, String> body, jakarta.servlet.http.HttpServletRequest request) {
         String raw = body == null ? null : body.get("risk");
         if (raw == null || raw.isBlank()) {
             throw new BizException(400, "risk 不能为空");
@@ -79,6 +83,9 @@ public class ToolRiskController {
         data.put("risk", risk.name());
         data.put("policy", sandboxPolicy.policyFor(risk));
         data.put("allowed", sandboxPolicy.allowExecution(risk));
+        // V2.4.0 C2：审计——工具风险级调整（安全相关操作，必留痕）
+        auditService.record(request, "tool.risk.set", "tool", toolName,
+                java.util.Map.of("risk", risk.name()), true);
         return R.success(data);
     }
 
