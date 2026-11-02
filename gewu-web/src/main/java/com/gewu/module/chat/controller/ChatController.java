@@ -37,6 +37,9 @@ public class ChatController {
 
     private final ConversationService conversationService;
     private final TokenUsageService tokenUsageService;
+
+    /** V2.4.0 C2：审计日志（管理面操作留痕；落库失败不影响业务） */
+    private final com.gewu.module.monitor.service.AuditService auditService;
     private final com.gewu.module.chat.service.ContextCompactService contextCompactService;
     private final com.gewu.module.user.service.UserSettingService userSettingService;
     private final com.gewu.module.chat.service.CommandService commandService;
@@ -220,11 +223,13 @@ public class ChatController {
      * 清除会话历史
      */
     @PostMapping("/session/{sessionId}/clear")
-    public R<SessionResponseDTO> clearSession(@PathVariable String sessionId) {
+    public R<SessionResponseDTO> clearSession(@PathVariable String sessionId, jakarta.servlet.http.HttpServletRequest httpRequest) {
         conversationService.ensureAccessible(sessionId,
                 usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
         conversationService.clearSession(sessionId);
         log.info("会话历史已清除：sessionId={}", sessionId);
+        // V2.4.0 C2：审计——清空会话消息
+        auditService.record(httpRequest, "session.clear", "chat_session", sessionId, null, true);
         return R.success("会话历史已清除", SessionResponseDTO.of(sessionId, null));
     }
 
@@ -232,11 +237,13 @@ public class ChatController {
      * 删除会话
      */
     @DeleteMapping("/session/{sessionId}")
-    public R<SessionResponseDTO> deleteSession(@PathVariable String sessionId) {
+    public R<SessionResponseDTO> deleteSession(@PathVariable String sessionId, jakarta.servlet.http.HttpServletRequest httpRequest) {
         conversationService.ensureAccessible(sessionId,
                 usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
         conversationService.deleteSession(sessionId);
         log.info("会话已删除：sessionId={}", sessionId);
+        // V2.4.0 C2：审计——删除会话
+        auditService.record(httpRequest, "session.delete", "chat_session", sessionId, null, true);
         return R.success("会话已删除", SessionResponseDTO.of(sessionId, null));
     }
 
@@ -305,12 +312,14 @@ public class ChatController {
      * T2.3 删除分组（会话回落「默认」组）
      */
     @DeleteMapping("/groups/{groupName}")
-    public R<Map<String, Object>> dissolveGroup(@PathVariable String groupName) {
+    public R<Map<String, Object>> dissolveGroup(@PathVariable String groupName, jakarta.servlet.http.HttpServletRequest httpRequest) {
         Long currentUserId = usageQuotaService.resolveCurrentUserId();
         if (currentUserId == null) {
             throw new BizException(401, "请先登录");
         }
         int affected = conversationService.dissolveGroup(groupName, currentUserId);
+        // V2.4.0 C2：审计——解散会话分组
+        auditService.record(httpRequest, "group.dissolve", "chat_session_group", groupName, null, true);
         return R.success("分组已删除", Map.of("affected", affected));
     }
 

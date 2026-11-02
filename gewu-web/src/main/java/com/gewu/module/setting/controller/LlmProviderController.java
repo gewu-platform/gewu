@@ -39,6 +39,9 @@ public class LlmProviderController {
     private final LlmProviderService llmProviderService;
     private final ProviderConnectivityService connectivityService;
 
+    /** V2.4.0 C2：审计日志（管理面操作留痕；落库失败不影响业务） */
+    private final com.gewu.module.monitor.service.AuditService auditService;
+
     /**
      * 配置列表
      */
@@ -51,7 +54,11 @@ public class LlmProviderController {
      * 新增配置
      */
     @PostMapping("/providers")
-    public R<LlmProviderView> create(@RequestBody @Valid LlmProviderSaveRequest request) {
+    public R<LlmProviderView> create(@RequestBody @Valid LlmProviderSaveRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        // V2.4.0 C2：审计——模型 Provider 新增（含密钥，AuditService 对密钥键掩码）
+        auditService.record(httpRequest, "provider.create", "llm_provider", null,
+                java.util.Map.of("name", request.getName() == null ? "" : request.getName(),
+                        "vendor", String.valueOf(request.getVendor()), "apiSpecialKey", String.valueOf(request.getApiSpecialKey())), true);
         return R.success(llmProviderService.create(request));
     }
 
@@ -59,8 +66,11 @@ public class LlmProviderController {
      * 更新配置
      */
     @PostMapping("/providers/{id}")
-    public R<LlmProviderView> update(@PathVariable Long id,
-                                     @RequestBody @Valid LlmProviderSaveRequest request) {
+    public R<LlmProviderView> update(@PathVariable Long id, @RequestBody @Valid LlmProviderSaveRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        // V2.4.0 C2：审计——模型 Provider 更新（含密钥，掩码后落库）
+        auditService.record(httpRequest, "provider.update", "llm_provider", String.valueOf(id),
+                java.util.Map.of("name", request.getName() == null ? "" : request.getName(),
+                        "vendor", String.valueOf(request.getVendor()), "apiSpecialKey", String.valueOf(request.getApiSpecialKey())), true);
         return R.success(llmProviderService.update(id, request));
     }
 
@@ -68,8 +78,10 @@ public class LlmProviderController {
      * 删除配置
      */
     @DeleteMapping("/providers/{id}")
-    public R<Void> delete(@PathVariable Long id) {
+    public R<Void> delete(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest httpRequest) {
         llmProviderService.delete(id);
+        // V2.4.0 C2：审计——模型 Provider 删除
+        auditService.record(httpRequest, "provider.delete", "llm_provider", String.valueOf(id), null, true);
         return R.success(null);
     }
 
@@ -77,8 +89,10 @@ public class LlmProviderController {
      * 激活配置
      */
     @PostMapping("/providers/{id}/activate")
-    public R<Void> activate(@PathVariable Long id) {
+    public R<Void> activate(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest httpRequest) {
         llmProviderService.activate(id);
+        // V2.4.0 C2：审计——切换激活模型
+        auditService.record(httpRequest, "provider.activate", "llm_provider", String.valueOf(id), null, true);
         return R.success(null);
     }
 
