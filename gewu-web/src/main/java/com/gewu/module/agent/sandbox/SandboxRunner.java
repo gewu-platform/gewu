@@ -70,6 +70,20 @@ public class SandboxRunner {
     /** V2.1.0 B4/T4.1：最近一次沙箱工具调用名（日志关联用） */
     private volatile String lastToolName = null;
 
+    /** V2.4.0 C1：适配器注册表——toolName → adapter（构造注入，新增工具零改 Runner） */
+    private final Map<String, SandboxAdapter> adapters = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public SandboxRunner(com.gewu.module.agent.tools.SandboxPolicy sandboxPolicy,
+                         java.util.List<SandboxAdapter> adapterList) {
+        this.sandboxPolicy = sandboxPolicy;
+        if (adapterList != null) {
+            for (SandboxAdapter a : adapterList) {
+                adapters.put(a.toolName(), a);
+            }
+        }
+        log.info("[Sandbox] 适配器注册表初始化：{} 个 → {}", adapters.size(), adapters.keySet());
+    }
+
     /** fat-jar 模式下物化出的完整子进程 classpath（惰性构建，缓存复用） */
     private volatile String childClasspath;
 
@@ -90,31 +104,26 @@ public class SandboxRunner {
      * 按工具名路由沙箱任务（首版仅 calculator——DYNAMIC 且为 JS eval）。
      * 无适配器返回 error（调用方 fail-closed）。
      */
+    /**
+     * V2.4.0 C1：按工具名查适配器注册表派发沙箱任务；无适配器 → fail-closed。
+     */
     public Map<String, Object> runTool(String toolName, String argumentsJson) {
         this.lastToolName = toolName;
-        if ("calculator".equals(toolName)) {
-            String expression = extractExpression(argumentsJson);
-            if (expression == null || expression.isBlank()) {
-            // V2.1.0 B3/T3.1：受限表达式校验（与直执行路径同源防护）
-            String vErr = validateExpression(expression);
-            if (vErr != null) {
-                return fail(vErr);
-            }
-                return fail("calculator 入参缺失（expression）");
-            }
-            // 与 CalculatorTool 同语义：^ → **
-            // V2.3.0 B1：与直执行路径同源——复用 CalculatorTool.rewritePowerOps
-            // （Nashorn 不支持 ** 运算符，旧实现是坏实现）
-            String rewritten = com.gewu.module.agent.tools.CalculatorTool.rewritePowerOps(expression);
-            if (rewritten.startsWith("计算失败：")) {
-                return fail(rewritten);
-            }
-            // V2.3.0 B2：结果与直执行路径同源归一（科学计数法/浮点尾）
-            Map<String, Object> out = rawRun("js",
-                    com.gewu.module.agent.tools.CalculatorTool.stripTrailingDotZero(rewritten));
-            return out;
+        SandboxAdapter adapter = adapters.get(toolName);
+        if (adapter == null) {
+            return fail("工具 '" + toolName + "' 暂无沙箱适配器（已注册: " + adapters.keySet() + "）");
         }
-        return fail("工具 '" + toolName + "' 暂无沙箱适配器（首版仅 calculator）");
+        Map<String, String> task = adapter.prepare(argumentsJson);
+        if (task == null) {
+            return fail("工具 '" + toolName + "' 入参缺失或不可执行");
+        }
+        String type = task.get("type");
+        String code = task.get("code");
+        if ("error".equals(type)) {
+            return fail(code);
+        }
+        return rawRun(type, adapter.normalized()
+                ? com.gewu.module.agent.tools.CalculatorTool.stripTrailingDotZero(code) : code);
     }
 
     public boolean isHealthy() {
@@ -463,6 +472,11 @@ public class SandboxRunner {
      * 阻断字母标识符（Java.type/Runtime 逃逸）、分号（多语句注入）、反引号等；
      * T3.2：长度上限 200 字符。返回 null=通过，否则返回错误文案。
      */
+    /** V2.4.0 C1：公开包装——供 SandboxAdapter 复用同一套白名单规则（双路径同源） */
+    public static String validateExpressionPublic(String expression) {
+        return validateExpression(expression);
+    }
+
     private static String validateExpression(String expression) {
         if (expression == null || expression.isBlank()) {
             return "计算失败：表达式为空";
