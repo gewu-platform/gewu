@@ -121,10 +121,18 @@ gewu:
     policy:
       safe: ${GEWU_SANDBOX_SAFE:direct}
       dynamic: ${GEWU_SANDBOX_DYNAMIC:direct}
-      external: ${GEWU_SANDBOX_EXTERNAL:sandbox}
+      # V2.2.0 A1：external 默认改 direct——MCP 工具为纯 HTTP/SSE 直通，本地无代码执行，
+      # JVM 隔离无安全收益却带来每次 500ms+ 开销；风险控制改由调用侧有界执行
+      # （超时/结果上限/审计留痕）承担
+      external: ${GEWU_SANDBOX_EXTERNAL:direct}
       dangerous: ${GEWU_SANDBOX_DANGEROUS:sandbox}
       # V2.1.0 B4/T4.2：沙箱不可用时降级策略（reject=拒绝[默认] / allow-direct=直执行但强告警）
       on-unavailable: ${GEWU_SANDBOX_ON_UNAVAILABLE:reject}
+  # V2.2.0 A1：MCP 调用边界（纯 HTTP 直通的真实风险控制点）
+  mcp:
+    call:
+      timeout-ms: ${GEWU_MCP_TIMEOUT_MS:30000}
+      max-result-chars: ${GEWU_MCP_MAX_RESULT_CHARS:100000}
   # V2.1.0 B2：沙箱运行器（独立子 JVM 执行；总开关 false 时 sandboxAvailable 恒 false，走 fail-closed）
   runner:
     enabled: ${GEWU_SANDBOX_RUNNER_ENABLED:true}

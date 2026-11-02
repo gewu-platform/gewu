@@ -34,6 +34,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class McpClientHolder {
 
     private final ToolRegistry toolRegistry;
+    /** V2.2.0 A1：MCP 调用超时（毫秒）——纯 HTTP 直通的边界控制 */
+    @org.springframework.beans.factory.annotation.Value("${gewu.mcp.call.timeout-ms:30000}")
+    private long callTimeoutMs;
+
+    /** V2.2.0 A1：单次调用结果长度上限（字符），防超长响应打爆上下文 */
+    @org.springframework.beans.factory.annotation.Value("${gewu.mcp.call.max-result-chars:100000}")
+    private int maxResultChars;
 
     /** server name → 已连接客户端 */
     private final Map<String, McpClient> clients = new ConcurrentHashMap<>();
@@ -58,10 +65,15 @@ public class McpClientHolder {
             if (clients.containsKey(serverName)) {
                 return 0; // 已连接
             }
+            // V2.2.0 A1：使用 MCP 库原生超时（避免自建 CompletableFuture 占用公共线程池）
+            java.time.Duration callTimeout = java.time.Duration.ofMillis(
+                    callTimeoutMs > 0 ? callTimeoutMs : 30000);
             McpClient client = DefaultMcpClient.builder()
                     .transport(new HttpMcpTransport.Builder()
                             .sseUrl(endpoint)
+                            .timeout(callTimeout)
                             .build())
+                    .toolExecutionTimeout(callTimeout)
                     .build();
             // 构建即建连；checkHealth 强制校验可达性（不可达直接抛出，由调用方决定收敛路径）
             client.checkHealth();
@@ -137,6 +149,9 @@ public class McpClientHolder {
             if (client == null) {
                 return "[MCP] server 未连接：" + serverName;
             }
+            // V2.2.0 A1：有界直执行——超时由 MCP 库原生处理（toolExecutionTimeout/transport timeout），
+            // 此处只负责结果长度上限与耗时审计，不额外占用公共线程池
+            long t0 = System.currentTimeMillis();
             try {
                 ToolExecutionRequest raw = ToolExecutionRequest.builder()
                         .id(request.id())
@@ -144,10 +159,24 @@ public class McpClientHolder {
                         .arguments(request.arguments())
                         .build();
                 ToolExecutionResult result = client.executeTool(raw);
-                return result.resultText() == null ? "" : result.resultText();
+                String text = result.resultText() == null ? "" : result.resultText();
+                boolean truncated = false;
+                if (maxResultChars > 0 && text.length() > maxResultChars) {
+                    text = text.substring(0, maxResultChars);
+                    truncated = true;
+                }
+                log.info("[MCP] 调用留档：server={}, tool={}, elapsedMs={}ms, outLen={}, truncated={}",
+                        serverName, rawTool, System.currentTimeMillis() - t0, text.length(), truncated);
+                return truncated ? text + "\n...[MCP 结果超长已截断，上限 " + maxResultChars + " 字符]" : text;
             } catch (Exception e) {
-                log.warn("[MCP] 工具调用失败：server={}, tool={}, {}", serverName, rawTool, e.getMessage());
-                return "[MCP] 工具调用失败：" + e.getMessage();
+                Throwable root = e;
+                while (root.getCause() != null) {
+                    root = root.getCause();
+                }
+                String reason = root.getMessage() == null ? e.getMessage() : root.getMessage();
+                log.warn("[MCP] 工具调用失败：server={}, tool={}, elapsedMs={}ms, reason={}",
+                        serverName, rawTool, System.currentTimeMillis() - t0, reason);
+                return "[MCP] 工具调用失败：" + reason;
             }
         };
     }

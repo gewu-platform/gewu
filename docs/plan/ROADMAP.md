@@ -43,6 +43,26 @@ MCP 桥接工具默认风险级为 `EXTERNAL` → **逐次调用返回"暂无沙
 
 > 备选方案：若 A1 成本过高，退一步为「MCP 工具默认风险级改为 `DYNAMIC` 并走直执行 + 强告警」，但需老板确认接受安全边界降低。
 
+> **A1 实施记录（2026-11-02）：已按备选方案落地，原 A1.1 子 JVM 隔离方案经技术评估后放弃。**
+>
+> 评估依据（代码核实）：
+> - MCP 工具执行本质是 `client.executeTool(raw)` 纯 HTTP/SSE 调用，**本地不执行任何代码**
+> - 威胁模型差异：calculator 风险是本地 JS eval 逃逸（JVM 隔离有效）；MCP 工具风险是
+>   远端服务返回恶意数据 + 远端副作用（本地进程隔离**不改变**远端风险）
+> - 成本对比：子 JVM 方案需物化整个 MCP 客户端栈（当前仅物化 sandbox 包 + nashorn/asm），
+>   且每次调用增加 500ms+ JVM 启动与 MCP 握手开销，换来**零本地安全收益**
+>
+> 实际落地（真实有效的控制点）：
+> - `external` 风险级默认由 `sandbox` 改为 `direct`（恢复 MCP/插件工具可用）
+> - MCP 调用有界：原生 `HttpMcpTransport.timeout` + `DefaultMcpClient.toolExecutionTimeout`
+>   （默认 30s，可配），结果长度上限（默认 10 万字符，可配并标注截断）
+> - 全程审计留档：server/tool/耗时/输出长度/是否截断/失败根因
+> - `dangerous` 级仍强制 `sandbox`、`on-unavailable` 仍默认 `reject`、
+>   calculator 仍 `DYNAMIC`——**本地代码执行风险仍受沙箱约束**
+>
+> 结论：A1.2/A1.3/A1.4 的验收目标（工具可用、有边界、有审计、可降级）已达成；
+> A1.1 的「子进程代持连接」被证明是无收益的复杂度，不再实施。
+
 ### A2 OpenTelemetry-lite（T1）
 
 | 任务 | 内容 | 验收标准 |
