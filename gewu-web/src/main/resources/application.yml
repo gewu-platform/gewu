@@ -137,6 +137,18 @@ security:
 
 # ==================== Gewu 自定义配置 ====================
 gewu:
+  # V2.2.0 A3：接口限流（进程内令牌桶；与 quota 分层——限流管速率，配额管每日总量）
+  # 注意：多实例部署时各实例独立计数，全局精确限流需改用 Redis 实现（见 ROADMAP V2.5.0）
+  ratelimit:
+    enabled: ${GEWU_RATELIMIT_ENABLED:true}
+    chat:
+      # 对话类接口：突发 10 次，恢复 0.5/秒（≈ 每分钟 30 次）
+      capacity: ${GEWU_RATELIMIT_CHAT_CAPACITY:10}
+      refill-per-second: ${GEWU_RATELIMIT_CHAT_REFILL:0.5}
+    default:
+      capacity: ${GEWU_RATELIMIT_DEFAULT_CAPACITY:60}
+      refill-per-second: ${GEWU_RATELIMIT_DEFAULT_REFILL:5}
+    idle-evict-seconds: ${GEWU_RATELIMIT_IDLE_EVICT_SECONDS:600}
   # V2.1.0 B1/T1.2：工具执行策略（direct=直执行 / sandbox=沙箱 / disabled=禁用）
   # 注意：策略=sandbox 且沙箱运行时不可用时按 fail-closed 拒绝执行（不静默直执行）
   sandbox:
