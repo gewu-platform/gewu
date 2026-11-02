@@ -96,6 +96,14 @@ public class CalculatorTool {
                     ls--;
                 }
                 if (ls < 0) { return "计算失败：^ 左括号不匹配"; }
+                // V2.3.0 B2 评测发现：左操作数为前次改写的 Math.pow(...) 时，
+                // 仅捕获括号组会丢函数名前缀（产生 Math.powMath.pow(...) 非法式），
+                // 需向左扩展捕获完整调用标识符
+                while (ls > 0) {
+                    char prev = s.charAt(ls - 1);
+                    if (Character.isLetterOrDigit(prev) || prev == '.' || prev == '_') { ls--; }
+                    else { break; }
+                }
             } else {
                 while (ls >= 0) {
                     char ch = s.charAt(ls);
@@ -143,7 +151,16 @@ public class CalculatorTool {
      * V2.3.0 B1：整数浮点结果归一——尾部恰为 ".0" 时去掉（1024.0 → 1024）。
      * 仅处理精确 .0 尾，不影响 60.00000000000001 这类真实小数。
      */
-    private static String stripTrailingDotZero(String s) {
-        return (s != null && s.endsWith(".0")) ? s.substring(0, s.length() - 2) : s;
+    public static String stripTrailingDotZero(String s) {
+        if (s == null) { return null; }
+        String t = s.trim();
+        // V2.3.0 B2 评测发现：Nashorn 对超 int 范围整数用科学计数法
+        // （999999*999999 → 9.99998000001E11），转 plain 十进制（精确，double<2^53）
+        if (t.matches("[+-]?\\d+(\\.\\d+)?[eE][+-]?\\d+")) {
+            try { t = new java.math.BigDecimal(t).toPlainString(); } catch (Exception ignore) { }
+        }
+        // 整数浮点尾归一：1024.0 → 1024
+        if (t.endsWith(".0")) { t = t.substring(0, t.length() - 2); }
+        return t;
     }
 }

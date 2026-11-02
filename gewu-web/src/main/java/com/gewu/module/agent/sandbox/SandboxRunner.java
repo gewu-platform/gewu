@@ -109,7 +109,10 @@ public class SandboxRunner {
             if (rewritten.startsWith("计算失败：")) {
                 return fail(rewritten);
             }
-            return rawRun("js", rewritten);
+            // V2.3.0 B2：结果与直执行路径同源归一（科学计数法/浮点尾）
+            Map<String, Object> out = rawRun("js",
+                    com.gewu.module.agent.tools.CalculatorTool.stripTrailingDotZero(rewritten));
+            return out;
         }
         return fail("工具 '" + toolName + "' 暂无沙箱适配器（首版仅 calculator）");
     }
