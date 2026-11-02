@@ -1,6 +1,7 @@
--- ==========================================
+-- V2.3.0 B3.2：纳入既有手工迁移（原 database/migrations/20261028-b3-compact.sql，v1.0.1 B3）
+-- 幂等：已手工应用的库（init.sql 或基线）重复执行安全
+
 -- T3 v1.0.1：用户对话设置（compact 配置 per-user）
--- ==========================================
 CREATE TABLE IF NOT EXISTS sys_user_setting (
     user_id      BIGINT       PRIMARY KEY,
     settings     TEXT         DEFAULT NULL,

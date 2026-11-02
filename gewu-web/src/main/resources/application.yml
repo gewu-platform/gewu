@@ -38,6 +38,15 @@ spring:
       database: 0
       timeout: 2s
 # ==================== LangChain4j 配置 ====================
+  # V2.3.0 B3.2：数据库增量迁移——init.sql 仍是建库真相源，Flyway 只管 V2+ 增量
+  # 已有库打基线（baseline-version=1）后应用增量；增量 SQL 必须幂等（IF NOT EXISTS）
+  flyway:
+    enabled: ${GEWU_FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    encoding: UTF-8
+
 langchain4j:
   # 当前激活的模型 ID
   active-model: volc-lite-endpoint
