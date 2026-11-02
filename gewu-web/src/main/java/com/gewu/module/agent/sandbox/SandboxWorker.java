@@ -39,12 +39,14 @@ public final class SandboxWorker {
             return;
         }
 
-        String[] parts = line.split("\t", 2);
+        String[] parts = line.split("\t", 3);
         String type = parts[0];
         String code = parts.length > 1 ? unescape(parts[1]) : "";
+        // V2.2.0 A2/T2.4：可选第三段为父进程 traceId，回写以便父子日志关联
+        String traceId = parts.length > 2 ? parts[2] : "";
 
         if (!"js".equals(type)) {
-            emit("error", "不支持的任务类型: " + type);
+            emit("error", "不支持的任务类型: " + type, traceId);
             System.exit(2);
             return;
         }
@@ -52,21 +54,27 @@ public final class SandboxWorker {
         try {
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("JavaScript");
             if (engine == null) {
-                emit("error", "JS 引擎不可用(Nashorn 未加载)");
+                emit("error", "JS 引擎不可用(Nashorn 未加载)", traceId);
                 System.exit(3);
                 return;
             }
             Object result = engine.eval(code);
-            emit("ok", result == null ? "" : String.valueOf(result));
+            emit("ok", result == null ? "" : String.valueOf(result), traceId);
             System.exit(0);
         } catch (Throwable t) {
-            emit("error", safe(t.getMessage()));
+            emit("error", safe(t.getMessage()), traceId);
             System.exit(1);
         }
     }
 
     private static void emit(String status, String payload) {
-        System.out.println(status + "\t" + escape(payload == null ? "" : payload));
+        emit(status, payload, "");
+    }
+
+    /** V2.2.0 A2/T2.4：结果行第三段回写 traceId，供父进程关联 */
+    private static void emit(String status, String payload, String traceId) {
+        String tail = (traceId == null || traceId.isEmpty()) ? "" : "\t" + escape(traceId);
+        System.out.println(status + "\t" + escape(payload == null ? "" : payload) + tail);
         System.out.flush();
     }
 

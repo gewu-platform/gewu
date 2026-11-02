@@ -81,7 +81,8 @@ public class SandboxRunner {
      */
     public Map<String, Object> runJs(String code) {
         Map<String, Object> out = rawRun("js", code == null ? "" : code);
-        log.info("[Sandbox] 执行完成：status={}, elapsedMs={}ms", out.get("status"), out.get("elapsedMs"));
+        log.info("[Sandbox] 执行完成：status={}, elapsedMs={}ms, traceId={}",
+                out.get("status"), out.get("elapsedMs"), com.gewu.config.TraceIdFilter.currentTraceId());
         return out;
     }
 
@@ -169,7 +170,10 @@ public class SandboxRunner {
 
             // 写任务（单行：type\tcode，code 已转义）
             try (OutputStream os = proc.getOutputStream()) {
-                os.write((type + "\t" + SandboxWorker.escape(code)).getBytes(StandardCharsets.UTF_8));
+                String tid = com.gewu.config.TraceIdFilter.currentTraceId();
+                String taskLine = type + "\t" + SandboxWorker.escape(code)
+                        + ((tid == null || tid.isBlank()) ? "" : "\t" + tid);
+                os.write(taskLine.getBytes(StandardCharsets.UTF_8));
                 os.write('\n');
                 os.flush();
             }
@@ -193,7 +197,7 @@ public class SandboxRunner {
             int exit = proc.exitValue();
             String line = firstLine(stdout.toString());
             if (exit == 0 && line != null) {
-                String[] parts = line.split("\t", 2);
+                String[] parts = line.split("\t", 3);
                 String status = parts[0];
                 String payload = parts.length > 1 ? SandboxWorker.unescape(parts[1]) : "";
                 return result(status,
@@ -289,21 +293,27 @@ public class SandboxRunner {
      * 返回「物化 classes 目录 + 各 jar」拼成的完整 classpath。已存在则复用。
      */
     private synchronized String materialize(String jarPath) throws Exception {
+        // V2.2.0 A2：物化缓存随 jar 失效——key 含 jar 路径+大小+mtime，
+        // 否则重打包后仍复用旧 worker class（曾导致协议不匹配）
+        java.io.File jarFile = new java.io.File(jarPath);
+        String stamp = jarPath + "|" + jarFile.length() + "|" + jarFile.lastModified();
         Path base = Paths.get(System.getProperty("java.io.tmpdir"),
-                "gewu-sandbox-" + Integer.toHexString(jarPath.hashCode()));
+                "gewu-sandbox-" + Integer.toHexString(stamp.hashCode()));
+        Path classesDir = base.resolve("classes");
+        Path libDir = base.resolve("lib");
         Path marker = base.resolve("classpath.txt");
-        if (Files.isRegularFile(marker)) {
+        String expectWorker = classesDir.resolve(SandboxWorker.class.getName()
+                .replace('.', '/') + ".class").toString();
+        if (Files.isRegularFile(marker) && Files.isRegularFile(Paths.get(expectWorker))) {
             String cached = Files.readString(marker, StandardCharsets.UTF_8);
             if (cached != null && !cached.isBlank()) {
                 log.info("[Sandbox] 复用已物化沙箱目录：{}", base);
                 return cached;
             }
         }
-        Path classesDir = base.resolve("classes");
-        Path libDir = base.resolve("lib");
+
         Files.createDirectories(classesDir);
         Files.createDirectories(libDir);
-
         String prefix = "BOOT-INF/classes/" + SandboxWorker.class.getPackageName().replace('.', '/') + "/";
         int classes = 0;
         int libs = 0;

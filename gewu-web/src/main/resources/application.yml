@@ -89,6 +89,27 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 # ==================== 服务器配置 ====================
+
+# V2.2.0 A2：可观测性端点（仅暴露 health/metrics/prometheus，其余关闭）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: gewu
+
+  # V2.2.0 A2：health 语义——只反映「服务能否提供能力」
+  # Redis 为可选加速层（gewu.redis.enabled 注释：不可达自动降级走 DB/内存路径），
+  # 故默认不参与整体健康判定；如需监控 Redis 请走 prometheus 指标或单独探针
+  health:
+    redis:
+      enabled: ${GEWU_HEALTH_REDIS_ENABLED:false}
 server:
   port: 8081
 
@@ -97,10 +118,11 @@ logging:
   level:
     root: INFO
     com.gewu: DEBUG
+  pattern:
+    # V2.2.0 A2：日志格式含 traceId（空时显示 -），便于串联单次请求全部日志
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{traceId:--}] %-40.40logger{39} : %m%n"
   file:
     name: logs/gewu-web.log
-
-# ==================== JWT 配置 ====================
 jwt:
   secret: ${JWT_SECRET:mySecretKeyMustBeAtLeast32CharactersLongForHS512Algorithm}
   expiration: ${JWT_EXPIRATION:86400} # 24小时（秒）

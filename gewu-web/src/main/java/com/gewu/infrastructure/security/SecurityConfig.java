@@ -81,7 +81,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()      // 认证接口无需认证
                 .requestMatchers("/api/health/**").permitAll()    // 健康检查无需认证
                 .requestMatchers("/api/chat/health").permitAll()  // 聊天健康检查无需认证
-                .requestMatchers("/api/agent/health").permitAll() // Agent 健康检查无需认证
+                .requestMatchers("/api/agent/health").permitAll()
+            // V2.2.0 A2：可观测端点——健康检查公开，指标仅 ADMIN（避免泄露内部细节）
+            .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+            .requestMatchers("/actuator/**").hasRole("ADMIN") // Agent 健康检查无需认证
                 .requestMatchers("/api/agent/tools").permitAll()  // Agent 工具列表无需认证
                 // P8b 权限管控：Agent 定义管理与工具审批仅管理员（ROLE_ADMIN）
                 .requestMatchers("/api/settings/**").hasRole("ADMIN")

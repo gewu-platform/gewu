@@ -31,6 +31,16 @@
             <artifactId>gewu-security</artifactId>
         </dependency>
 
+        <!-- V2.2.0 A2：可观测性——actuator 健康/指标端点 + micrometer 指标注册 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
