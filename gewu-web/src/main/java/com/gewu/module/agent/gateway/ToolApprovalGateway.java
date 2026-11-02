@@ -68,6 +68,18 @@ public class ToolApprovalGateway {
     private final Map<String, Boolean> approvedCache = new ConcurrentHashMap<>();
 
     /**
+     * V2.1.0 B1/T1.3：风险分级来源（DANGEROUS 级无条件需审批）。
+     * 注意：本网关由 AgentService 直接 new（非 Spring Bean），@Autowired 不生效，
+     * 必须由调用方显式 setRiskSource 注入。
+     */
+    private com.gewu.module.agent.tools.ToolRegistry riskSource;
+
+    /** 显式注入风险分级来源（new 出本网关后必须调用） */
+    public void setRiskSource(com.gewu.module.agent.tools.ToolRegistry registry) {
+        this.riskSource = registry;
+    }
+
+    /**
      * 检查工具调用是否需要审批（兼容旧调用：不传 Agent 策略，走工具级默认）
      */
     public ApprovalResult check(String toolCallId, String toolName, String toolDescription,
@@ -102,6 +114,19 @@ public class ToolApprovalGateway {
                 .agentId(agentId)
                 .sessionId(sessionId)
                 .build();
+
+        // V2.1.0 B1/T1.3：DANGEROUS 风险级无条件需审批（优先级高于工具级白名单与 Agent 策略）
+        if (riskSource != null && riskSource.getRisk(toolName)
+                == com.gewu.module.agent.tools.ToolRisk.DANGEROUS) {
+            request.setToolDescription("[高危] " + (toolDescription == null ? toolName : toolDescription));
+            pendingApprovals.put(toolCallId, request);
+            log.info("[ApprovalGateway] 需要审批：tool={}, toolCallId={}, 原因=风险级 DANGEROUS", toolName, toolCallId);
+            return ApprovalResult.builder()
+                    .status(ApprovalStatus.APPROVAL_REQUIRED)
+                    .message("需要审批: 工具风险级为高危（DANGEROUS）")
+                    .request(request)
+                    .build();
+        }
 
         // 2. Agent 级策略优先（页面可配，P8b 审批管控）
         if (agentRequireApproval != null) {

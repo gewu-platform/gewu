@@ -36,6 +36,13 @@ public class ToolRegistry {
     /** 工具执行器（反射调用） */
     private final Map<String, ToolExecutor> executors = new ConcurrentHashMap<>();
 
+    /** V2.1.0 B1：工具风险级（工具名 → 风险级） */
+    private final Map<String, ToolRisk> riskLevels = new ConcurrentHashMap<>();
+
+    /** V2.1.0 B1/T1.2：执行策略（按风险级决定直执行/沙箱/禁用） */
+    @org.springframework.beans.factory.annotation.Autowired
+    private SandboxPolicy sandboxPolicy;
+
     /**
      * T7：容器就绪后自动扫描 tools 包的 @Component/@Service Bean 并注册。
      * ApplicationReadyEvent 时机：所有 Bean 已就绪，避免 @PostConstruct 期间
@@ -68,6 +75,8 @@ public class ToolRegistry {
         for (dev.langchain4j.agent.tool.ToolSpecification spec : specifications) {
             specs.put(spec.name(), spec);
             executors.put(spec.name(), new DefaultToolExecutor(toolBean, findMethod(toolBean, spec.name())));
+            // V2.1.0 B1：内置工具按能力标注风险级
+            riskLevels.put(spec.name(), classifyBuiltin(spec.name()));
         }
 
         toolBeans.put(specifications.get(0).name(), toolBean);
@@ -109,6 +118,16 @@ public class ToolRegistry {
             return String.format("错误：未找到名为 '%s' 的工具。可用工具：%s",
                     request.name(), specs.keySet());
         }
+
+        // V2.1.0 B1/T1.2：按风险级决定是否允许执行（沙箱不可用且策略要求沙箱 → fail-closed 拒绝）
+        ToolRisk risk = getRisk(request.name());
+        if (sandboxPolicy != null && !sandboxPolicy.allowExecution(risk)) {
+            log.warn("[Sandbox] 拒绝执行：tool={}, risk={}, policy={}, sandboxAvailable={}",
+                    request.name(), risk.name(), sandboxPolicy.policyFor(risk), sandboxPolicy.isSandboxAvailable());
+            return String.format("工具 '%s' 因风险策略被拒绝执行（风险级=%s，策略=%s，沙箱可用=%s）。",
+                    request.name(), risk.label(), sandboxPolicy.policyFor(risk),
+                    sandboxPolicy.isSandboxAvailable() ? "是" : "否");
+        }
         try {
             return executor.execute(request, null);
         } catch (Exception e) {
@@ -144,9 +163,18 @@ public class ToolRegistry {
      * V1.1.0 C3/T3.3：直注册外部工具（MCP 桥接用——非 @Tool 注解 Bean，spec/executor 直接入表）
      */
     public void registerDirect(dev.langchain4j.agent.tool.ToolSpecification spec, ToolExecutor executor) {
+        registerDirect(spec, executor, ToolRisk.EXTERNAL);
+    }
+
+    /**
+     * V2.1.0 B1：直注册外部工具并可指定风险级（默认 EXTERNAL）。
+     */
+    public void registerDirect(dev.langchain4j.agent.tool.ToolSpecification spec, ToolExecutor executor, ToolRisk risk) {
         specs.put(spec.name(), spec);
         executors.put(spec.name(), executor);
-        log.info("注册外部工具：{}", spec.name());
+        riskLevels.put(spec.name(), risk == null ? ToolRisk.EXTERNAL : risk);
+        log.info("注册外部工具：{}（风险级={}）", spec.name(), riskLevels.get(spec.name()).label());
+
     }
 
     /**
@@ -156,7 +184,43 @@ public class ToolRegistry {
         specs.remove(toolName);
         executors.remove(toolName);
         toolBeans.remove(toolName);
+        riskLevels.remove(toolName);
         log.info("注销外部工具：{}", toolName);
+    }
+
+    /**
+     * V2.1.0 B1：取工具风险级（未知工具按 SAFE 兜底，避免过度拦截）
+     */
+    public ToolRisk getRisk(String name) {
+        ToolRisk r = riskLevels.get(name);
+        return r == null ? ToolRisk.SAFE : r;
+    }
+
+    /** V2.1.0 B1：全部工具风险级快照（管理/排障用） */
+    public Map<String, String> getAllRisks() {
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        for (String n : specs.keySet()) {
+            out.put(n, getRisk(n).name());
+        }
+        return out;
+    }
+
+    /** V2.1.0 B1：显式设置风险级（页面/配置可将某工具提级为 DANGEROUS） */
+    public void setRisk(String toolName, ToolRisk risk) {
+        if (risk != null && specs.containsKey(toolName)) {
+            riskLevels.put(toolName, risk);
+        }
+    }
+
+    /**
+     * V2.1.0 B1：内置工具风险分级。
+     * calculator 走脚本引擎 eval → DYNAMIC；其余内置 → SAFE。
+     */
+    private ToolRisk classifyBuiltin(String toolName) {
+        if (toolName == null) {
+            return ToolRisk.SAFE;
+        }
+        return "calculator".equals(toolName) ? ToolRisk.DYNAMIC : ToolRisk.SAFE;
     }
 
     private java.lang.reflect.Method findMethod(Object bean, String toolName) {

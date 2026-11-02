@@ -96,6 +96,8 @@ public class AgentService {
      */
     @PostConstruct
     public void init() {
+        // V2.1.0 B1/T1.3：网关由 new 创建（非 Spring Bean），需显式注入风险分级来源
+        approvalGateway.setRiskSource(toolRegistry);
         log.info("AgentService 初始化（工具注册由 ToolRegistry 自动扫描完成）");
         // V1.1.0 C2/T2.3：重启恢复——从 DB 重建审批挂起队列（getPendingApprovals 返回内部引用，可直接回填）
         var restored = executionService.restoreWaitingApprovals();
