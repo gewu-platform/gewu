@@ -1,4 +1,4 @@
-# Gewu — 企业级 AI Agent 平台（Java AI 原生）
+# Gewu — 企业级 AI Agent 平台
 
 <p align="center"><img src="docs/banner.png" alt="Gewu" width="680" /></p>
 
@@ -14,7 +14,7 @@
 
 **Gewu（格物）** 是基于 **LangChain4j 1.11.7 + Spring Boot 3.2 + PostgreSQL/pgvector** 的企业级 AI Agent 全栈平台。覆盖对话（真流式 SSE）、RAG 知识库、Prompt 版本管理、LLM 监控与用量报表、Agent 工具编排（审批网关）、模型配置中心六大能力域，开箱即可作为企业 AI 中台底座或二开起点。
 
-> 后端 ~8.8k 行 Java（108 文件，Maven 四模块）| [前端](https://github.com/gewu-platform/gewu-web) ~7.8k 行 Vue（22 文件）| PG 12 表 | 50+ REST 端点
+> 后端 ~15.7k 行 Java（156 文件主源码 + 8 个测试类，Maven 四模块）| [前端](https://github.com/gewu-platform/gewu-web) ~11.1k 行 Vue | PG 16 表 | 93 REST 端点
 
 [English](#english--快速开始英文) · [API 参考](docs/API.md) · [工具扩展](docs/EXTEND-TOOL.md) · [架构总览](docs/ARCHITECTURE.md) · [部署指南](docs/DEPLOY.md)
 
@@ -24,7 +24,7 @@
 
 | 能力域 | 说明 |
 |------|------|
-| 💬 **对话** | 16 端点：会话 CRUD、逐 token 真流式 SSE、多模态图片输入、token 统计落库 |
+| 💬 **对话** | 27 端点：会话 CRUD、逐 token 真流式 SSE、多模态预留（V2.5.0 M1）、token 统计落库 |
 | 🤖 **Agent 编排** | lc4j 原生 function calling 循环、5 个对话入口、**挂起式审批网关**（human-in-the-loop，同一 SSE 连接续跑）、Agent 定义 CRUD + 3 个预置模板 |
 | 📚 **RAG 知识库** | md/txt/pdf/docx 上传 → 异步分块索引（2048 维）→ pgvector 余弦检索 → Agent 定义级知识库绑定（请求级参数可覆盖） |
 | 🧩 **Prompt 管理** | 版本制模板（创建自动 +1）、变量提取、渲染执行、一键回滚 |
@@ -43,9 +43,12 @@ gewu/                 gewu-web/
 │   ├── agent           编排/工具/审批
 │   ├── knowledge       RAG
 │   ├── monitor         监控/报表/配额
+│   ├── audit           审计日志（管理面留痕）
 │   ├── settings        模型配置中心
+│   ├── mcp             MCP 客户端与桥接
+│   ├── plugin          插件仓库
 │   └── prompt          模板管理
-└── database/gewu-init.sql  幂等建表（12 表）
+└── database/gewu-init.sql  幂等建表（16 表）
 ```
 
 细节见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
@@ -62,7 +65,7 @@ git clone https://github.com/gewu-platform/gewu-web.git
 **前置**：JDK 17、Node 18+、PostgreSQL 16（需 pgvector 扩展）、一个 OpenAI 兼容模型端点（如火山方舟 / DeepSeek / 通义）。
 
 ```bash
-# 1. 建库（幂等脚本，含全部 12 表 + 种子数据）
+# 1. 建库（幂等脚本，含全部 16 表 + 种子数据）
 psql -U postgres -d gewu -f database/gewu-init.sql
 
 # 2. 配置模型（环境变量方式，不改代码）
@@ -80,7 +83,7 @@ cd ../gewu-web && npm i && npm run dev   # 前端仓库：github.com/gewu-platfo
 
 ## 🔌 API 一览
 
-50+ REST 端点，完整契约见 [docs/API.md](docs/API.md)：
+93 REST 端点，完整契约见 [docs/API.md](docs/API.md)：
 
 | 模块 | 代表端点 |
 |---|---|
@@ -140,7 +143,8 @@ cd ../gewu-web && npm i && npm run dev   # 前端仓库：github.com/gewu-platfo
 | [docs/EXTEND-TOOL.md](docs/EXTEND-TOOL.md) | 自定义工具开发（3 步接入） |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构地图 + 数据流 + 扩展点 |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Docker / nginx 部署 + 离线包 + FAQ |
-| [docs/plan/V1.0-PLAN.md](docs/plan/V1.0-PLAN.md) | 版本规划 |
+| [docker/README.md](docker/README.md) | 构建入口索引（两种模式/根目录文件约束） |
+| [docs/plan/](docs/plan/ROADMAP.md) | 版本规划（ROADMAP + 各版本 PLAN） |
 
 ## English · Quick Start (brief)
 
