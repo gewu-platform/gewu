@@ -1,18 +1,15 @@
 package com.gewu.module.agent.controller;
 
 import com.gewu.common.R;
-import com.gewu.module.agent.definition.AgentConfig;
-import com.gewu.module.agent.definition.AgentDefinition;
 import com.gewu.module.agent.dto.AgentChatRequest;
 import com.gewu.module.agent.dto.AgentChatResponse;
-import com.gewu.module.agent.dto.AgentDefinitionRequest;
 import com.gewu.module.agent.dto.AgentStreamResponse;
-import com.gewu.module.agent.registry.AgentRegistry;
-import com.gewu.module.agent.service.AgentService;
 import com.gewu.module.agent.service.AgentService.AgentIteration;
 import com.gewu.module.agent.service.AgentService.AgentResult;
-import com.gewu.module.agent.tools.ToolRegistry;
+import com.gewu.module.agent.service.AgentService;
 import com.gewu.module.chat.service.ChatSessionService;
+import com.gewu.module.monitor.service.UsageQuotaService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -27,38 +24,29 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Agent REST API（对齐 java-ai-native AgentController + AgentDefinitionController 合并形态）
+ * Agent 对话入口 REST API（/api/agent）。
  *
- * 对话：/api/agent/chat、/chat/simple、/chat/smart、/chat/stream
- * 工具：/api/agent/tools
- * 审批：/api/agent/approval/pending、/approve、/reject
- * 定义：/api/agent/definitions CRUD + /enabled + /reload + /available-tools
+ * <p>承载 5 个对话入口：同步（chat / simple / smart）与流式（stream / stream-session）。
+ * 全部受 T6 配额闸门保护，流式端点使用 SseEmitter 直写事件流。</p>
  *
- * 认证：SecurityConfig anyRequest().authenticated() 已覆盖。
+ * <p>V2.5.0 重构：原 AgentController（420 行 / 18 端点）按资源边界拆为三个：
+ * {@link AgentChatController}（对话）、{@link AgentDefinitionController}（定义 CRUD）、
+ * {@link AgentToolController}（工具/健康/审批）。共享 /api/agent 前缀，
+ * (verb, path) 组合互不重叠，对外契约不变。</p>
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/agent")
 @RequiredArgsConstructor
-public class AgentController {
+public class AgentChatController {
 
     private final AgentService agentService;
-    private final AgentRegistry agentRegistry;
-    private final ToolRegistry toolRegistry;
     private final ChatSessionService chatSessionService;
-
-    /** V2.4.0 C2：审计日志（管理面操作留痕；落库失败不影响业务） */
-    private final com.gewu.module.audit.service.AuditService auditService;
-    private final com.gewu.module.monitor.service.UsageQuotaService usageQuotaService;
-
-    // ==================== 同步对话 ====================
+    private final UsageQuotaService usageQuotaService;
 
     /**
      * Agent 对话（核心）：agentId 指定走定义，否则带全量工具
@@ -113,8 +101,6 @@ public class AgentController {
         return R.success(toResponse(result));
     }
 
-    // ==================== 流式对话 ====================
-
     /**
      * 流式对话（SSE）：事件链 iteration → thought → action → tool_result
      * （→ approval_required）→ done
@@ -156,8 +142,6 @@ public class AgentController {
         emitter.onTimeout(disposable::dispose);
         return emitter;
     }
-
-    // ==================== 会话式 Agent 流（P8a 方案 D）====================
 
     /**
      * 智能模式流式对话：会话记忆 + 工具循环 + 轨迹落库（编排层统一入口）
@@ -203,194 +187,6 @@ public class AgentController {
         return emitter;
     }
 
-    // ==================== 工具 ====================
-
-    @GetMapping("/tools")
-    public R<List<Map<String, Object>>> getTools() {
-        return R.success(agentService.getTools());
-    }
-
-    @GetMapping("/health")
-    public R<Map<String, Object>> health() {
-        Map<String, Object> info = new HashMap<>();
-        info.put("status", "UP");
-        info.put("toolCount", agentService.getTools().size());
-        info.put("tools", toolRegistry.getToolNames());
-        info.put("engine", "langchain4j-native-function-calling");
-        return R.success(info);
-    }
-
-    // ==================== 审批网关 ====================
-
-    @GetMapping("/approval/pending")
-    public R<Map<String, Object>> getPendingApprovals() {
-        var pending = agentService.getPendingApprovals();
-        Map<String, Object> result = new HashMap<>();
-        result.put("count", pending.size());
-        result.put("requests", pending);
-        return R.success(result);
-    }
-
-    @PostMapping("/approval/approve")
-    public R<String> approveTool(@RequestBody ApprovalRequest request) {
-        if (request == null || request.getToolCallId() == null) {
-            return R.error(400, "toolCallId 不能为空");
-        }
-        return R.success(agentService.approveAndExecute(request.getToolCallId()));
-    }
-
-    @PostMapping("/approval/reject")
-    public R<String> rejectTool(@RequestBody ApprovalRequest request) {
-        if (request == null || request.getToolCallId() == null) {
-            return R.error(400, "toolCallId 不能为空");
-        }
-        return R.success(agentService.rejectAndNotify(request.getToolCallId(), request.getReason()));
-    }
-
-    // ==================== Agent 定义管理 ====================
-
-    /**
-     * 创建定义
-     */
-    @PostMapping("/definitions")
-    public R<AgentDefinition> createDefinition(@RequestBody AgentDefinitionRequest req, jakarta.servlet.http.HttpServletRequest request) {
-        if (req.getName() == null || req.getName().isBlank()) {
-            return R.error(400, "Agent 名称不能为空");
-        }
-        AgentDefinition definition = AgentDefinition.builder()
-                .id(UUID.randomUUID().toString())
-                .name(req.getName())
-                .description(req.getDescription())
-                .avatar(req.getAvatar())
-                .systemPrompt(req.getSystemPrompt())
-                .greeting(req.getGreeting())
-                .toolIds(req.getToolIds())
-                .config(AgentConfig.builder()
-                        .modelId(req.getModelId())
-                        .maxIterations(req.getMaxIterations())
-                        .temperature(req.getTemperature())
-                        .maxTokens(req.getMaxTokens())
-                        .requireApproval(req.getRequireApproval())
-                        .knowledgeDocumentIds(req.getKnowledgeDocumentIds())
-                        .ragTopK(req.getRagTopK())
-                        .role(req.getRole())
-                        .allowedWorkers(req.getAllowedWorkers())
-                        .skillIds(req.getSkillIds())
-                        .build())
-                .enabled(req.getEnabled() != null ? req.getEnabled() : true)
-                .build();
-        // V2.4.0 C2：审计——Agent 定义创建
-        auditService.record(request, "agent.create", "agent_definition", definition.getId(),
-                java.util.Map.of("name", definition.getName(), "role",
-                        definition.getConfig() == null ? null : definition.getConfig().getRole()), true);
-        return R.success(agentRegistry.register(definition));
-    }
-
-    /**
-     * 更新定义
-     */
-    @PutMapping("/definitions")
-    public R<AgentDefinition> updateDefinition(@RequestBody AgentDefinitionRequest req, jakarta.servlet.http.HttpServletRequest request) {
-        if (req.getId() == null || agentRegistry.get(req.getId()) == null) {
-            return R.error(400, "Agent 不存在: " + req.getId());
-        }
-        AgentDefinition existing = agentRegistry.get(req.getId());
-        AgentDefinition definition = AgentDefinition.builder()
-                .id(req.getId())
-                .name(req.getName() != null ? req.getName() : existing.getName())
-                .description(req.getDescription())
-                .avatar(req.getAvatar())
-                .systemPrompt(req.getSystemPrompt())
-                .greeting(req.getGreeting())
-                .toolIds(req.getToolIds())
-                .config(AgentConfig.builder()
-                        .modelId(req.getModelId())
-                        .maxIterations(req.getMaxIterations())
-                        .temperature(req.getTemperature())
-                        .maxTokens(req.getMaxTokens())
-                        // P8b 三态语义：前端表单始终显式传 requireApproval，null = 清除回「继承默认」
-                        .requireApproval(req.getRequireApproval())
-                        .knowledgeDocumentIds(req.getKnowledgeDocumentIds())
-                        .ragTopK(req.getRagTopK())
-                        .role(req.getRole())
-                        .allowedWorkers(req.getAllowedWorkers())
-                        .skillIds(req.getSkillIds())
-                        .build())
-                .enabled(req.getEnabled() != null ? req.getEnabled() : existing.getEnabled())
-                .creatorId(existing.getCreatorId())
-                .build();
-        // V2.4.0 C2：审计——Agent 定义更新
-        auditService.record(request, "agent.update", "agent_definition", definition.getId(),
-                java.util.Map.of("name", definition.getName()), true);
-        return R.success(agentRegistry.update(definition));
-    }
-
-    /**
-     * 删除定义
-     */
-    @DeleteMapping("/definitions/{id}")
-    public R<Void> deleteDefinition(@PathVariable String id, jakarta.servlet.http.HttpServletRequest request) {
-        if (agentRegistry.get(id) == null) {
-            return R.error(400, "Agent 不存在: " + id);
-        }
-        agentRegistry.delete(id);
-        // V2.4.0 C2：审计——Agent 定义删除
-        auditService.record(request, "agent.delete", "agent_definition", id, null, true);
-        return R.success();
-    }
-
-    /**
-     * 定义列表（含禁用）
-     */
-    @GetMapping("/definitions")
-    public R<List<AgentDefinition>> listDefinitions() {
-        return R.success(agentRegistry.listAll());
-    }
-
-    /**
-     * 已启用定义列表（对话选择用）
-     */
-    @GetMapping("/definitions/enabled-list")
-    public R<List<AgentDefinition>> listEnabledDefinitions() {
-        return R.success(agentRegistry.listEnabled());
-    }
-
-    /**
-     * 启用/禁用
-     */
-    @PutMapping("/definitions/{id}/enabled")
-    public R<Void> setEnabled(@PathVariable String id, @RequestParam boolean enabled, jakarta.servlet.http.HttpServletRequest request) {
-        if (agentRegistry.get(id) == null) {
-        // V2.4.0 C2：审计——Agent 启停
-        auditService.record(request, enabled ? "agent.enable" : "agent.disable", "agent_definition", id,
-                java.util.Map.of("enabled", enabled), true);
-            return R.error(400, "Agent 不存在: " + id);
-        }
-        agentRegistry.setEnabled(id, enabled);
-        return R.success();
-    }
-
-    /**
-     * 重载缓存
-     */
-    @PostMapping("/definitions/reload")
-    public R<Map<String, Object>> reload() {
-        agentRegistry.reload();
-        Map<String, Object> result = new HashMap<>();
-        result.put("loaded", agentRegistry.listEnabled().size());
-        return R.success(result);
-    }
-
-    /**
-     * 可用工具清单（定义绑定用）
-     */
-    @GetMapping("/available-tools")
-    public R<List<Map<String, Object>>> availableTools() {
-        return R.success(agentService.getTools());
-    }
-
-    // ==================== 私有 ====================
-
     private AgentChatResponse toResponse(AgentResult result) {
         List<AgentChatResponse.IterationDetail> iterations = result.getIterations().stream()
                 .map(it -> AgentChatResponse.IterationDetail.builder()
@@ -411,9 +207,4 @@ public class AgentController {
                 .build();
     }
 
-    @lombok.Data
-    public static class ApprovalRequest {
-        private String toolCallId;
-        private String reason;
-    }
 }

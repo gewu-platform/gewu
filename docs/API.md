@@ -81,6 +81,9 @@
 
 ## Agent（/api/agent）
 
+> 实现侧拆为三个控制器（`AgentChatController` 对话 / `AgentDefinitionController` 定义 CRUD /
+> `AgentToolController` 工具与审批），共享 `/api/agent` 前缀，对外契约不变。
+
 ### 对话入口（5 个，均受 T6 配额闸门保护）
 
 | 方法 | 路径 | 说明 |
@@ -115,6 +118,7 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/tools` | 全量工具规格 |
+| GET | `/health` | 健康探活（工具数 / 工具名清单 / 引擎标识） |
 | GET | `/available-tools` | 当前可用工具 |
 | GET | `/approval/pending` | 待审批列表 |
 | POST | `/approval/approve` | 批准（body: toolCallId） |
@@ -125,10 +129,10 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET/POST | `/definitions` | 列表 / 创建 |
-| POST | `/definitions/{id}` | 更新（body 带 id） |
+| PUT | `/definitions` | 更新（id 在 body，非路径参数） |
 | DELETE | `/definitions/{id}` | 删除 |
 | GET | `/definitions/enabled-list` | 已启用列表 |
-| POST | `/definitions/{id}/enabled` | 启停 |
+| PUT | `/definitions/{id}/enabled` | 启停（query 参数 enabled=true/false） |
 | POST | `/definitions/reload` | 热重载 |
 
 定义 `config` 核心字段：`modelId`、`maxIterations`、`temperature`、`maxTokens`、`requireApproval`（null=继承工具级 / true / false）、`knowledgeDocumentIds`（T5 定义级知识库绑定，请求级缺省时回退）、`ragTopK`（1-10，默认 4）。

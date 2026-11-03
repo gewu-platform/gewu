@@ -63,7 +63,10 @@ user      → (独立)
 
 ```
 module/agent/
-├── controller/   AgentController（/api/agent/** 5 个对话入口）+ SkillLibraryController
+├── controller/   AgentChatController（/api/agent 5 个对话入口）
+│                 AgentDefinitionController（定义 CRUD 7 端点）
+│                 AgentToolController（工具/健康/审批 6 端点）
+│                 + SkillLibraryController / ToolRiskController
 │                 + ToolRiskController
 ├── service/      AgentService（编排主循环，门面）
 │                 AgentApprovalWaiter（审批挂起/唤醒）
@@ -94,7 +97,7 @@ module/agent/
 
 
 ```
-AgentController（/api/agent/**，5 个对话入口）
+AgentChatController（/api/agent，5 个对话入口）
       │
       ▼
 AgentService.chatStream()          编排循环（Flux + SseEmitter 直写）
