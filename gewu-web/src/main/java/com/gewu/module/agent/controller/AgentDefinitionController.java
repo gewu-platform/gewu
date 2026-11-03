@@ -73,11 +73,12 @@ public class AgentDefinitionController {
                         .build())
                 .enabled(req.getEnabled() != null ? req.getEnabled() : true)
                 .build();
-        // V2.4.0 C2：审计——Agent 定义创建
+        AgentDefinition created = agentRegistry.register(definition);
+        // V2.4.0 C2：审计——Agent 定义创建（写在写操作成功之后，失败不记）
         auditService.record(request, "agent.create", "agent_definition", definition.getId(),
                 java.util.Map.of("name", definition.getName(), "role",
                         definition.getConfig() == null ? null : definition.getConfig().getRole()), true);
-        return R.success(agentRegistry.register(definition));
+        return R.success(created);
     }
 
     /**
@@ -113,10 +114,11 @@ public class AgentDefinitionController {
                 .enabled(req.getEnabled() != null ? req.getEnabled() : existing.getEnabled())
                 .creatorId(existing.getCreatorId())
                 .build();
-        // V2.4.0 C2：审计——Agent 定义更新
+        AgentDefinition updated = agentRegistry.update(definition);
+        // V2.4.0 C2：审计——Agent 定义更新（写在写操作成功之后，失败不记）
         auditService.record(request, "agent.update", "agent_definition", definition.getId(),
                 java.util.Map.of("name", definition.getName()), true);
-        return R.success(agentRegistry.update(definition));
+        return R.success(updated);
     }
 
     /**
@@ -155,12 +157,12 @@ public class AgentDefinitionController {
     @PutMapping("/definitions/{id}/enabled")
     public R<Void> setEnabled(@PathVariable String id, @RequestParam boolean enabled, jakarta.servlet.http.HttpServletRequest request) {
         if (agentRegistry.get(id) == null) {
-        // V2.4.0 C2：审计——Agent 启停
-        auditService.record(request, enabled ? "agent.enable" : "agent.disable", "agent_definition", id,
-                java.util.Map.of("enabled", enabled), true);
             return R.error(400, "Agent 不存在: " + id);
         }
         agentRegistry.setEnabled(id, enabled);
+        // V2.4.0 C2：审计——Agent 启停（写在成功路径，失败不记）
+        auditService.record(request, enabled ? "agent.enable" : "agent.disable", "agent_definition", id,
+                java.util.Map.of("enabled", enabled), true);
         return R.success();
     }
 
