@@ -66,14 +66,29 @@ class RateLimitServiceTest {
     }
 
     @Test
-    void 令牌不超容量封顶() throws InterruptedException {
-        // 满桶后等一段再连发，放行数不应超过容量
-        Thread.sleep(60);
+    void 令牌不超容量封顶() {
+        // 关闭补充：满桶 3 个令牌后连发 10 次，恰好只能放行 3 次。
+        // 原实现用 refill=100/秒 且空等 60ms 后连发，循环本身耗时只要超过 10ms
+        // 就会补回令牌，导致放行 4 次以上（机器快慢决定结果）——属确定性缺陷，非产品缺陷。
+        svc.setChatRefill(0.0);
         int granted = 0;
         for (int i = 0; i < 10; i++) {
-            if (svc.tryAcquire("chat:cap", true).allowed()) granted++;
+            if (svc.tryAcquire("chat:cap", true).allowed()) {
+                granted++;
+            }
         }
-        assertThat(granted).isLessThanOrEqualTo(3);
+        assertThat(granted).isEqualTo(3);
+    }
+
+    @Test
+    void 补充不突破容量上限() throws InterruptedException {
+        // 高补充速率下长等：若未做 min(cap, ...)，令牌会涨到 ~100 个。
+        // 封顶后取一个令牌，剩余应为 cap-1=2（允许极微小的补充误差）。
+        svc.setChatRefill(1000.0);
+        Thread.sleep(100);
+        RateLimitService.Decision d = svc.tryAcquire("chat:overfill", true);
+        assertThat(d.allowed()).isTrue();
+        assertThat(d.remaining()).isLessThanOrEqualTo(2);
     }
 
     @Test
