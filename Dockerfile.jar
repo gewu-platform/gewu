@@ -32,6 +32,9 @@ COPY --from=extract /app/layers/spring-boot-loader/ ./
 COPY --from=extract /app/layers/snapshot-dependencies/ ./
 COPY --from=extract /app/layers/application/ ./
 
+# V2.3.0：Flyway 增量迁移文件（运行时按 filesystem:database/migrations 读取）
+COPY database/migrations ./database/migrations
+
 # 知识库上传文件卷
 VOLUME ["/app/uploads"]
 

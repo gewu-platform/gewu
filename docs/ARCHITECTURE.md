@@ -221,7 +221,12 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
 **双轨契约**：
 
 - `database/gewu-init.sql`：**建库真相源**（Docker compose / 空库初始化），15 表全量幂等
-- `gewu-web/src/main/resources/db/migration/V{n}__*.sql`：**Flyway 增量**，只管 V2+ 变更
+- `database/migrations/V{n}__*.sql`：**Flyway 增量**，只管 V2+ 变更（与 init.sql 同目录）
 
 `baseline-on-migrate=true` + `baseline-version=1`：已有库首次启动打基线，仅应用增量；
+
+**路径解析**：Flyway 使用 `filesystem:database/migrations`（相对进程工作目录，可用
+`GEWU_FLYWAY_LOCATIONS` 覆盖为绝对路径）。因此**必须在仓库根目录启动**，或显式指定绝对路径；
+容器镜像已内置 `./database/migrations` 并支持只读挂载覆盖。
+
 增量 SQL 必须幂等（`IF NOT EXISTS`），与手工应用历史兼容。

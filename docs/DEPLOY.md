@@ -317,7 +317,11 @@ gunzip -c gewu-db-2026-10-23.sql.gz | docker exec -i gewu-db psql -U gewu gewu
   已有库首次启动打基线后仅应用增量
 - 增量 SQL 必须**幂等**（`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`）
   以便与手工应用历史安全兼容
-- 迁移文件位置：`gewu-web/src/main/resources/db/migration/V{n}__{描述}.sql`
+- 迁移文件位置：`database/migrations/V{n}__{描述}.sql`（与 `gewu-init.sql` 同目录，运维一处可见）
+- 读取方式：`filesystem:database/migrations`（**相对进程工作目录**），可用 `GEWU_FLYWAY_LOCATIONS` 覆盖
+  - 本地/裸 jar：在仓库根目录启动（`java -jar gewu-web/target/gewu-web-1.0-SNAPSHOT.jar`）
+  - 其他工作目录：显式指定绝对路径，如 `GEWU_FLYWAY_LOCATIONS=filesystem:/opt/gewu/database/migrations`
+  - 容器：镜像已内置 `./database/migrations`，compose 另做只读挂载（免重建即可更新增量 SQL）
 
 启动日志确认迁移状态：
 

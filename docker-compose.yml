@@ -71,6 +71,8 @@ services:
       JAVA_OPTS: ${GEWU_JAVA_OPTS:--Xms512m -Xmx1024m}
     volumes:
       - gewu-uploads:/app/uploads
+      # V2.3.0：迁移文件只读挂载（免重建镜像即可更新增量 SQL；镜像内已内置一份兜底）
+      - ./database/migrations:/app/database/migrations:ro
     ports:
       - "${GEWU_SERVER_PORT:-8080}:8081"
     healthcheck:
