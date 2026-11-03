@@ -68,22 +68,14 @@ public class AgentService {
     private final TokenUsageService tokenUsageService;
     // P8b 编排层：RAG 检索注入（盘活 P3/P4 知识库）
     private final KnowledgeBaseService knowledgeBaseService;
-    private final ToolApprovalGateway approvalGateway = new ToolApprovalGateway();
+    /** 审批协调器（挂起等待 / 决策唤醒 / 终结落库）；依赖 executionService，在 init() 中构造 */
+    private AgentApprovalWaiter approvalWaiter;
 
     // V1.1.0 C2：执行态持久化（checkpoint 叶子服务，仅依赖 Mapper 无循环依赖）
     private final AgentExecutionService executionService;
 
     // V2.0.0 R2：公共 Skill 库（提示词包注入，目录只读）
     private final com.gewu.module.agent.skill.SkillLibraryService skillLibrary;
-
-    /** 挂起中的审批决策凭证：toolCallId → future（true=批准，false=拒绝／超时） */
-    private final Map<String, CompletableFuture<Boolean>> approvalDecisions = new ConcurrentHashMap<>();
-
-    /** 审批等待：3 分钟超时兜底 */
-    private static final long APPROVAL_TIMEOUT_MS = 3 * 60 * 1000;
-
-    /** 审批等待期心跳间隔 15s（防代理断连） */
-    private static final long APPROVAL_PING_INTERVAL_MS = 15 * 1000;
 
     /** 最大迭代（安全兜底，Agent 定义可覆盖） */
     private static final int MAX_ITERATIONS = 10;
@@ -96,14 +88,15 @@ public class AgentService {
      */
     @PostConstruct
     public void init() {
+        // 审批协调器：依赖 executionService，故在此构造（字段初始化器执行时构造参数尚未赋值）
+        approvalWaiter = new AgentApprovalWaiter(executionService);
         // V2.1.0 B1/T1.3：网关由 new 创建（非 Spring Bean），需显式注入风险分级来源
-        approvalGateway.setRiskSource(toolRegistry);
+        approvalWaiter.gateway().setRiskSource(toolRegistry);
         log.info("AgentService 初始化（工具注册由 ToolRegistry 自动扫描完成）");
-        // V1.1.0 C2/T2.3：重启恢复——从 DB 重建审批挂起队列（getPendingApprovals 返回内部引用，可直接回填）
-        var restored = executionService.restoreWaitingApprovals();
-        if (!restored.isEmpty()) {
-            approvalGateway.getPendingApprovals().putAll(restored);
-            log.info("[Checkpoint] 已恢复 {} 个审批挂起项", restored.size());
+        // V1.1.0 C2/T2.3：重启恢复——从 DB 重建审批挂起队列
+        int restored = approvalWaiter.restorePending();
+        if (restored > 0) {
+            log.info("[Checkpoint] 已恢复 {} 个审批挂起项", restored);
         }
     }
 
@@ -492,7 +485,7 @@ public class AgentService {
                         sink.next(AgentStreamResponse.action(req.name(), req.arguments(), iterNum));
 
                         String toolCallId = req.id() != null ? req.id() : UUID.randomUUID().toString();
-                        var approval = approvalGateway.check(
+                        var approval = approvalWaiter.gateway().check(
                                 toolCallId, req.name(),
                                 toolRegistry.getDescription(req.name()),
                                 AgentTextUtils.parseArgs(req.arguments()), finalAgentId, null,
@@ -513,7 +506,7 @@ public class AgentService {
                                 if (approval.getRequest() != null) {
                                     executionService.recordWaitingApproval(approval.getRequest());
                                 }
-                                boolean approved = waitApprovalDecision(sink, toolCallId);
+                                boolean approved = approvalWaiter.waitDecision(sink, toolCallId);
                                 if (approved) {
                                     result = executeWithDispatch(req, sessionId, finalAgentId, userId);
                                     if (!toolsUsed.contains(req.name())) {
@@ -562,83 +555,21 @@ public class AgentService {
         });
     }
 
-    /**
-     * 流式循环内挂起等待审批决策（同一 SSE 流续跑）
-     * - 注册 future → 轮询等待（15s 心跳 ping 防代理断连，3 分钟超时兜底）
-     * - true=批准（原地执行工具），false=拒绝/超时（回填未通过观察结果）
-     */
-    private boolean waitApprovalDecision(FluxSink<AgentStreamResponse> sink, String toolCallId) {
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
-        approvalDecisions.put(toolCallId, future);
-        try {
-            long deadline = System.currentTimeMillis() + APPROVAL_TIMEOUT_MS;
-            long nextPing = System.currentTimeMillis() + APPROVAL_PING_INTERVAL_MS;
-            while (!future.isDone()) {
-                if (sink.isCancelled()) {
-                    future.cancel(true);
-                    return false;
-                }
-                if (System.currentTimeMillis() >= deadline) {
-                    log.warn("[ApprovalGateway] 审批等待超时：toolCallId={}", toolCallId);
-                    future.complete(false);
-                    break;
-                }
-                if (System.currentTimeMillis() >= nextPing) {
-                    sink.next(AgentStreamResponse.ping());
-                    nextPing = System.currentTimeMillis() + APPROVAL_PING_INTERVAL_MS;
-                }
-                Thread.sleep(200);
-            }
-            return future.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        } catch (Exception e) {
-            log.error("审批等待异常：toolCallId={}", toolCallId, e);
-            return false;
-        } finally {
-            approvalDecisions.remove(toolCallId);
-        }
-    }
-
-    /**
-     * 审批决策入口（由 Controller approve/reject 调用）：完成决策凭证唤醒挂起线程
-     */
-    public boolean completeApprovalDecision(String toolCallId, boolean approved) {
-        CompletableFuture<Boolean> future = approvalDecisions.get(toolCallId);
-        if (future == null) {
-            return false;
-        }
-        return future.complete(approved);
-    }
-
     // ==================== 审批 ====================
 
     /**
      * 审批通过并执行工具
      */
     public String approveAndExecute(String toolCallId) {
-        var result = approvalGateway.approve(toolCallId);
-        if (result.getStatus() != ToolApprovalGateway.ApprovalStatus.APPROVED) {
-            return "[审批失败] " + result.getMessage();
-        }
-        // V1.1.0 C2/T2.2：审批终结落库
-        executionService.finalizeApproval(toolCallId, "approved");
-        // 唤醒挂起的流式循环，由循环用原始请求原地执行（避免双重执行）
-        boolean woke = completeApprovalDecision(toolCallId, true);
-        return woke ? "已批准，Agent 继续执行" : "已批准（当前无挂起任务，重试时放行）";
+        return approvalWaiter.approveAndExecute(toolCallId);
     }
 
     public String rejectAndNotify(String toolCallId, String reason) {
-        var result = approvalGateway.reject(toolCallId, reason);
-        // V1.1.0 C2/T2.2：审批终结落库
-        executionService.finalizeApproval(toolCallId, "rejected");
-        completeApprovalDecision(toolCallId, false);
-        return "[审批拒绝] " + result.getMessage();
+        return approvalWaiter.rejectAndNotify(toolCallId, reason);
     }
 
     public Map<String, ToolApprovalGateway.ApprovalRequest> getPendingApprovals() {
-        return approvalGateway.getPendingApprovals();
+        return approvalWaiter.getPendingApprovals();
     }
 
     // ==================== 工具信息 ====================
@@ -743,7 +674,7 @@ public class AgentService {
             for (ToolExecutionRequest req : aiMessage.toolExecutionRequests()) {
                 String toolCallId = req.id() != null ? req.id()
                         : "tc-" + toolCallCounter.incrementAndGet();
-                var approval = approvalGateway.check(toolCallId, req.name(),
+                var approval = approvalWaiter.gateway().check(toolCallId, req.name(),
                         toolRegistry.getDescription(req.name()),
                         AgentTextUtils.parseArgs(req.arguments()), agentId, sessionId, agentRequireApproval);
 
