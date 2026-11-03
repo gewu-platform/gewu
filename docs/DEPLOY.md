@@ -20,6 +20,9 @@
 
 ---
 
+> 构建入口索引（两种模式对比、为何配置文件在根目录、常见问题）：
+> [docker/README.md](../docker/README.md)
+
 ## 1. 在线部署（推荐）
 
 ### 1.1 获取代码
@@ -316,6 +319,7 @@ gunzip -c gewu-db-2026-10-23.sql.gz | docker exec -i gewu-db psql -U gewu gewu
 - Flyway 只管 **V2+ 增量**：`baseline-on-migrate=true` + `baseline-version=1`，
   已有库首次启动打基线后仅应用增量
 - 增量 SQL 必须**幂等**（`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`）
+- **每次新增迁移后必须同步更新 `init.sql`**（全量快照），否则新库需依赖 Flyway 跑完才完整
   以便与手工应用历史安全兼容
 - 迁移文件位置：`database/migrations/V{n}__{描述}.sql`（与 `gewu-init.sql` 同目录，运维一处可见）
 - 读取方式：`filesystem:database/migrations`（**相对进程工作目录**），可用 `GEWU_FLYWAY_LOCATIONS` 覆盖

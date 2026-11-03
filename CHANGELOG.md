@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.0] - 2026-11-02
+
+### Added
+- **C1 Sandbox adapter registry**: `SandboxAdapter` interface (toolName / risk / prepare / normalized); `SandboxRunner` now builds a registry from constructor-injected `List<SandboxAdapter>` and dispatches by lookup — **adding a sandbox-capable tool no longer requires touching Runner**. `CalculatorSandboxAdapter` (migrated logic) + `DateTimeSandboxAdapter` (second adapter proving the extension point)
+- **C2 Audit logging**: `audit_log` table (init.sql source of truth + Flyway `V3`) with `AuditService` / `AuditLogMapper` / `GET /api/settings/audit-logs`; covers agent definition CRUD & enable/disable, model provider & secret changes, plugin create/install/uninstall/delete, tool risk changes, session & group cleanup
+- **C3 Container sandbox evaluation**: decision document concluding **defer** (no usable container runtime on the build host; process-level sandbox already covers the current threat surface). Trigger conditions documented
+
+### Fixed
+- `runTool` input validation order was inverted (validation ran inside the "missing argument" branch, so illegal expressions could bypass it) — corrected during adapter migration
+- Plugin `create` endpoint was missing audit instrumentation (found only by end-to-end testing, not by compile or unit tests)
+- `LlmProviderController.update` lost its `request` parameter when a multi-line signature was rewritten
+
+### Security
+- Audit `detail` masks any field whose key contains key/secret/token/password as `***`; detail capped at 2000 chars; audit writes never block business flow
+
+## [v2.3.0] - 2026-11-02
+
+### Added
+- **B1 Test baseline** (project had zero tests): 6 test classes / 48 cases — `ToolRiskTest`, `SandboxPolicyTest`, `SandboxExpressionGuardTest`, `CalculatorToolTest`, `RateLimitServiceTest`, `TraceIdFilterTest`, mirrored package structure
+- **B2 LLM evaluation loop**: `EvalSuiteTest` with `@TestFactory` dynamic tests, exact/prefix assertions, `[EVAL-FAIL]` details and `[EVAL-SUMMARY]`; `calculator-basic.yaml` with 20 fixed cases; directory guard against "empty run passes"
+- **B3 Release governance**: `CHANGELOG.md` (Keep a Changelog + SemVer, backfilled to v1.0.0); Flyway for incremental migrations (`baseline-on-migrate` + `baseline-version=1`, `init.sql` remains the build-from-scratch source of truth)
+
+### Fixed
+- Calculator power operator never worked: Nashorn does not support `**`, so `replaceAll("^","**")` was a syntax error — rewritten to `Math.pow(a,b)` with bracket/nested operand scanning and integer float normalization
+- Chained power `2^3^2` produced an illegal expression (`Math.powMath.pow(2,3)`) because the left-operand scan dropped the function name prefix
+- Integers above int range printed in scientific notation (`999999*999999` → `9.99998000001E11`) — normalized via `BigDecimal.toPlainString`
+
+> The three defects above were found by the new tests and evaluation suite; manual smoke testing had never covered them.
+
+## [v2.2.0] - 2026-11-02
+
+### Added
+- **A1 MCP tools restored** (fixes a v2.1.0 regression where `external=sandbox` with only a `calculator` adapter made every plugin/MCP tool fail): switched to **bounded direct execution** — `external` defaults to `direct`, native `HttpMcpTransport.timeout` + `DefaultMcpClient.toolExecutionTimeout` (30s, configurable), result length cap (100k chars, configurable, truncation annotated), full audit logging
+- **A2 OpenTelemetry-lite**: `spring-boot-starter-actuator` + `micrometer-registry-prometheus`; `/actuator/health` public for probes, other `/actuator/**` requires ADMIN; `TraceIdFilter` (X-Trace-Id passthrough or generation → MDC → `%X{traceId}` in logs, finally cleanup, response header echo, input sanitization); traceId propagated into sandbox child processes via three-segment protocol
+- **A3 Rate limiting**: in-process token bucket (`RateLimitService` + `RateLimitFilter`) on `/api/chat*` and `/api/agent/chat*`; 429 + `Retry-After`; authenticated requests keyed by username, anonymous by IP (X-Forwarded-For first); layered with quota (rate vs daily total)
+
+### Changed
+- `external` risk level default changed from `sandbox` to `direct` (MCP execution is pure HTTP/SSE with no local code execution; JVM isolation gives zero security benefit at 500ms+ cost per call)
+
+### Fixed
+- Sandbox materialization cache did not invalidate on rebuild (stale worker class reused, causing protocol mismatch) — cache key now includes jar path + size + mtime, plus worker class existence check
+- `logging.pattern` was inserted between `level:` and its children, breaking startup (`Failed to bind logging.level`)
+- Redis being unreachable pulled overall health to DOWN — Redis is an optional acceleration layer, so it no longer participates in overall health by default (`GEWU_HEALTH_REDIS_ENABLED=false`)
+
 ## [v2.1.0] - 2026-11-02
 
 ### Added

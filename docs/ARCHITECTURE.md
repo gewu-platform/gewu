@@ -25,6 +25,9 @@ gewu/
 │           └── prompt/         提示词模板（版本化）
 │       ├── config/            横切组件：RateLimitService/Filter、TraceIdFilter、调度与 MyBatis 配置
 ├── database/gewu-init.sql   单文件真相源（幂等，可重跑 0 ERROR）
+├── database/migrations/     Flyway 增量（已有库升级路径）
+├── docker/                  构建入口索引（README.md）+ jar/ 预打包产物；
+│                            配置文件仍在根目录（.dockerignore/.env/compose 路径基准约束）
 └── docs/                    本文档套件
 ```
 
@@ -80,7 +83,7 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
   → SSE 十类事件流 → 前端渲染
 ```
 
-## 数据模型（PostgreSQL + pgvector，15 表）
+## 数据模型（PostgreSQL + pgvector，16 表）
 
 | 表 | 说明 |
 |---|---|
@@ -218,9 +221,19 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
 
 ## 数据库迁移（V2.3.0）
 
-**双轨契约**：
+**双轨契约**（关键设计取舍）：
 
-- `database/gewu-init.sql`：**建库真相源**（Docker compose / 空库初始化），15 表全量幂等
+| 文件 | 角色 | 说明 |
+|---|---|---|
+| `database/gewu-init.sql` | **全量快照** | 建库真相源，含**所有迁移产物**（当前 16 张表）；Docker compose 与空库初始化用它，一次建全 |
+| `database/migrations/V{n}__*.sql` | **增量历史** | 已有库的升级路径；`baseline-version=1` 后只应用增量 |
+
+**同步规则（必守）**：每次新增迁移后，**必须同步更新 `init.sql`**，保持快照完整。
+否则新库必须依赖 Flyway 跑完才有完整结构——这是依赖启动顺序的隐性坑。
+两边都使用 `IF NOT EXISTS`，重复执行安全。
+
+
+- `database/gewu-init.sql`：**建库真相源**（Docker compose / 空库初始化），16 表全量幂等
 - `database/migrations/V{n}__*.sql`：**Flyway 增量**，只管 V2+ 变更（与 init.sql 同目录）
 
 `baseline-on-migrate=true` + `baseline-version=1`：已有库首次启动打基线，仅应用增量；
