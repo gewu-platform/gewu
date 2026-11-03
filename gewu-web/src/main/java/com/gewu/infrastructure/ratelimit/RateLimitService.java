@@ -1,4 +1,4 @@
-package com.gewu.config;
+package com.gewu.infrastructure.ratelimit;
 
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;

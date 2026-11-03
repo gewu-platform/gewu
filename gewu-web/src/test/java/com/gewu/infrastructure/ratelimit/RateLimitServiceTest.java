@@ -1,4 +1,4 @@
-package com.gewu.config;
+package com.gewu.infrastructure.ratelimit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

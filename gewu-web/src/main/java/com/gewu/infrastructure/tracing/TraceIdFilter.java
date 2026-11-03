@@ -1,4 +1,4 @@
-package com.gewu.config;
+package com.gewu.infrastructure.tracing;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

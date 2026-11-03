@@ -1,4 +1,4 @@
-package com.gewu.config;
+package com.gewu.infrastructure.ratelimit;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

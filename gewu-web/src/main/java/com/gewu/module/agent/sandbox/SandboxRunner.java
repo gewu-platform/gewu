@@ -96,7 +96,7 @@ public class SandboxRunner {
     public Map<String, Object> runJs(String code) {
         Map<String, Object> out = rawRun("js", code == null ? "" : code);
         log.info("[Sandbox] 执行完成：status={}, elapsedMs={}ms, traceId={}",
-                out.get("status"), out.get("elapsedMs"), com.gewu.config.TraceIdFilter.currentTraceId());
+                out.get("status"), out.get("elapsedMs"), com.gewu.infrastructure.tracing.TraceIdFilter.currentTraceId());
         return out;
     }
 
@@ -188,7 +188,7 @@ public class SandboxRunner {
 
             // 写任务（单行：type\tcode，code 已转义）
             try (OutputStream os = proc.getOutputStream()) {
-                String tid = com.gewu.config.TraceIdFilter.currentTraceId();
+                String tid = com.gewu.infrastructure.tracing.TraceIdFilter.currentTraceId();
                 String taskLine = type + "\t" + SandboxWorker.escape(code)
                         + ((tid == null || tid.isBlank()) ? "" : "\t" + tid);
                 os.write(taskLine.getBytes(StandardCharsets.UTF_8));
