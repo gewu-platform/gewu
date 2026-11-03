@@ -1,6 +1,9 @@
 package com.gewu.module.agent.tools;
 
-import com.gewu.module.agent.service.AgentService;
+import com.gewu.module.agent.dispatch.DispatchContext;
+import com.gewu.module.agent.dispatch.DispatchScope;
+import com.gewu.module.agent.dispatch.SubAgentResult;
+import com.gewu.module.agent.dispatch.SubAgentRunner;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
@@ -19,13 +22,17 @@ import java.util.List;
  * <p>安全边界（四层）：① 编排树仅一层（子执行中拒绝再派发）；② 仅 master 会话携带
  * 派发上下文；③ worker 必须在主 Agent config.allowedWorkers 清单内；④ worker 非 master
  * 且启用（runSubAgent 内校验），子 Agent 强制免审批。</p>
+ *
+ * <p>依赖方向说明：本类通过 {@link SubAgentRunner} 接口与 {@link DispatchScope}
+ * 访问编排能力，<b>不直接依赖 AgentService</b>。这样 tools 包不会反向依赖 service 包
+ * （service 依赖 ToolRegistry 已是 tools → service 的反向，直连会形成包级循环）。</p>
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class AgentDispatchTool {
 
-    private final AgentService agentService;
+    private final SubAgentRunner subAgentRunner;
 
     @Tool(name = "agent_dispatch",
             value = "把一个任务派发给指定的子 Agent 执行。workerAgentId 必须是可用的子 Agent 标识；task 是交给子 Agent 的完整任务描述（自包含，子 Agent 看不到你们的对话历史）。返回子 Agent 的执行结果摘要。")
@@ -35,12 +42,12 @@ public class AgentDispatchTool {
             @P("交给子 Agent 的完整任务描述，自包含且目标明确")
             String task) {
         // 1. 深度防护：子 Agent 执行中不允许再派发（编排树仅一层）
-        if (AgentService.inDispatch()) {
+        if (DispatchScope.isActive()) {
             log.warn("[agent_dispatch] 深度防护触发：子执行中再派发被拒");
             return "[agent_dispatch] 拒绝：子 Agent 执行期间不允许再派发（编排树仅一层）";
         }
         // 2. 授权校验：仅 master 的会话执行携带派发上下文
-        AgentService.DispatchContext ctx = AgentService.currentDispatchContext();
+        DispatchContext ctx = DispatchScope.current();
         if (ctx == null) {
             return "[agent_dispatch] 拒绝：仅 master 角色 Agent 可派发（当前会话未授权）";
         }
@@ -53,9 +60,9 @@ public class AgentDispatchTool {
             return "[agent_dispatch] 拒绝：子 Agent [" + workerAgentId + "] 不在 allowedWorkers 清单内（可用: " + allowed + "）";
         }
         try {
-            AgentService.AgentResult result = agentService.runSubAgent(workerAgentId, task, ctx);
-            return "子 Agent [" + workerAgentId + "] 执行完成（迭代 " + result.getIterationCount()
-                    + " 次，工具 " + result.getToolsUsed() + "）：\n" + result.getFinalAnswer();
+            SubAgentResult result = subAgentRunner.runSubAgent(workerAgentId, task, ctx);
+            return "子 Agent [" + workerAgentId + "] 执行完成（迭代 " + result.iterationCount()
+                    + " 次，工具 " + result.toolsUsed() + "）：\n" + result.finalAnswer();
         } catch (IllegalArgumentException | IllegalStateException e) {
             log.warn("[agent_dispatch] 派发被拒：worker={}, {}", workerAgentId, e.getMessage());
             return "[agent_dispatch] 派发失败：" + e.getMessage();

@@ -1,6 +1,10 @@
 package com.gewu.module.agent.service;
 
 import com.gewu.client.LangChain4jConfig;
+import com.gewu.module.agent.dispatch.DispatchContext;
+import com.gewu.module.agent.dispatch.DispatchScope;
+import com.gewu.module.agent.dispatch.SubAgentResult;
+import com.gewu.module.agent.dispatch.SubAgentRunner;
 import com.gewu.module.agent.definition.AgentDefinition;
 import com.gewu.module.chat.service.ChatMessageService;
 import com.gewu.module.chat.service.ChatSessionService;
@@ -56,7 +60,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AgentService {
+public class AgentService implements SubAgentRunner {
 
     private final ToolRegistry toolRegistry;
     private final AgentRegistry agentRegistry;
@@ -150,49 +154,18 @@ public class AgentService {
     // ==================== V2.0.0 R1 多 Agent 主从编排 ====================
 
     /**
-     * 派发上下文（ThreadLocal）：executeWithDispatch 为 master 执行工具前 set，执行后必 clear。
-     * DefaultToolExecutor 反射调用与 check/execute 同线程，确定性成立；
-     * 子 Agent 执行期间不再 set（深度强制一层），编排树防循环。
-     */
-    private static final ThreadLocal<DispatchContext> DISPATCH_CONTEXT = new ThreadLocal<>();
-
-    /** 子 Agent 执行标志：runSubAgent 进入置位、finally 清除；深度防护唯一判据 */
-    private static final ThreadLocal<Boolean> DISPATCH_ACTIVE = new ThreadLocal<>();
-
-    /** 子 Agent 是否正在本线程执行（dispatch 深度校验唯一判据） */
-    public static boolean inDispatch() {
-        return Boolean.TRUE.equals(DISPATCH_ACTIVE.get());
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class DispatchContext {
-        private Long parentUserId;
-        private String parentSessionId;
-        /** 发起派发的主 Agent id */
-        private String callerAgentId;
-        /** 主 Agent 允许派发的子 Agent 清单（null/空=未配置，拒绝派发） */
-        private java.util.List<String> allowedWorkers;
-    }
-
-    /** 读当前线程派发上下文（AgentDispatchTool 用）；无则返回 null */
-    public static DispatchContext currentDispatchContext() {
-        return DISPATCH_CONTEXT.get();
-    }
-
-    /**
      * R1/T1.2：工具执行包装——主 Agent 会话模式下为 agent_dispatch 建立派发上下文，
      * 子 Agent 执行期间（inDispatch=true）不再建立（编排树仅一层），执行后确定性清理。
      */
     private String executeWithDispatch(dev.langchain4j.agent.tool.ToolExecutionRequest req,
                                        String sessionId, String agentId, Long userId) {
         boolean owns = false;
-        if (!inDispatch() && sessionId != null && !sessionId.isBlank() && userId != null) {
+        if (!DispatchScope.isActive() && sessionId != null && !sessionId.isBlank() && userId != null) {
             // 仅 master 角色 Agent 建立派发上下文；非 master 不建（dispatch 工具将以未授权拒绝）
             AgentDefinition caller = agentId != null ? agentRegistry.get(agentId) : null;
             if (caller != null && caller.getConfig() != null
                     && "master".equals(caller.getConfig().getRole())) {
-                DISPATCH_CONTEXT.set(DispatchContext.builder()
+                DispatchScope.set(DispatchContext.builder()
                         .parentUserId(userId).parentSessionId(sessionId)
                         .callerAgentId(caller.getId())
                         .allowedWorkers(caller.getConfig().getAllowedWorkers())
@@ -204,7 +177,7 @@ public class AgentService {
             return toolRegistry.execute(req);
         } finally {
             if (owns) {
-                DISPATCH_CONTEXT.remove();
+                DispatchScope.clear();
             }
         }
     }
@@ -215,7 +188,8 @@ public class AgentService {
      * （历史加载、双消息落库、llm_call_log 监控埋点全部白拿，T1.4 免费达成）。
      * 结果经 agent_dispatch 工具返回值同步回流主 Agent；子会话挂 parent_session_id 供树形关联。
      */
-    public AgentResult runSubAgent(String workerAgentId, String task, DispatchContext ctx) {
+    @Override
+    public SubAgentResult runSubAgent(String workerAgentId, String task, DispatchContext ctx) {
         AgentDefinition def = agentRegistry.get(workerAgentId);
         if (def == null) {
             throw new IllegalArgumentException("子 Agent 不存在: " + workerAgentId);
@@ -248,7 +222,7 @@ public class AgentService {
                 childSessionId, workerAgentId, parentSessionId);
         // 子 Agent 免审批（编排场景无人值守，同步执行无审批通道，要求审批会永久挂起）；
         // 置位 ACTIVE：子执行内再调 agent_dispatch 被 executeWithDispatch/dispatch 双层拒绝
-        DISPATCH_ACTIVE.set(Boolean.TRUE);
+        DispatchScope.markActive();
         try {
             AgentResult result = executeLoop(
                     def.getConfig() != null && def.getConfig().getModelId() != null
@@ -262,12 +236,12 @@ public class AgentService {
                     workerAgentId, childSessionId, Boolean.FALSE, parentUserId);
             log.info("[Dispatch] 子 Agent 执行完成：worker={}, child={}, iterations={}, toolsUsed={}",
                     workerAgentId, childSessionId, result.getIterationCount(), result.getToolsUsed());
-            return result;
+            return new SubAgentResult(result.getFinalAnswer(), result.getIterationCount(), result.getToolsUsed());
         } catch (Exception e) {
             log.warn("[Dispatch] 子 Agent 执行失败：worker={}, {}", workerAgentId, e.getMessage());
             throw e;
         } finally {
-            DISPATCH_ACTIVE.remove();
+            DispatchScope.clearActive();
         }
     }
 
