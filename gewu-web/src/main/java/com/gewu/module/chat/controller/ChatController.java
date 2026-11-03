@@ -1,15 +1,16 @@
 package com.gewu.module.chat.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gewu.client.LangChain4jConfig;
 import com.gewu.common.BizException;
 import com.gewu.common.ErrorCode;
 import com.gewu.common.R;
 import com.gewu.module.chat.dto.*;
-import com.gewu.module.chat.entity.ChatSession;
+import com.gewu.module.chat.service.CommandService;
+import com.gewu.module.chat.service.ContextCompactService;
 import com.gewu.module.chat.service.ConversationService;
-import com.gewu.module.chat.service.TokenUsageService;
-import com.gewu.module.user.dto.UserInfoView;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gewu.module.monitor.service.UsageQuotaService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -17,7 +18,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,9 +25,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * 聊天 REST API 控制器（对齐 java-ai-native ChatController，LangChain4j 实现）
+ * 聊天主链路 REST API（/api/chat）。
  *
- * <p>端点同形：/api/chat/*，17 个端点。多模态预留（API 契约先落，图像输入后置）。</p>
+ * <p>承载消息发送（同步 + SSE 流式）、斜杠命令执行、健康探活四类端点。</p>
+ *
+ * <p>V2.5.0 重构：本类原为 586 行 / 27 端点的 God Controller，按资源边界拆为三个：
+ * {@link ChatController}（消息收发）、{@link ChatSessionController}（会话生命周期）、
+ * {@link ChatSettingsController}（压缩设置与模式/模型管理）。三者共享 /api/chat 前缀，
+ * (verb, path) 组合互不重叠，对外契约完全不变。</p>
  */
 @Slf4j
 @RestController
@@ -36,48 +41,11 @@ import java.util.stream.Collectors;
 public class ChatController {
 
     private final ConversationService conversationService;
-    private final TokenUsageService tokenUsageService;
-
-    /** V2.4.0 C2：审计日志（管理面操作留痕；落库失败不影响业务） */
-    private final com.gewu.module.audit.service.AuditService auditService;
-    private final com.gewu.module.chat.service.ContextCompactService contextCompactService;
-    private final com.gewu.module.user.service.UserSettingService userSettingService;
-    private final com.gewu.module.chat.service.CommandService commandService;
+    private final ContextCompactService contextCompactService;
+    private final CommandService commandService;
     private final LangChain4jConfig langChain4jConfig;
-    private final com.gewu.module.monitor.service.UsageQuotaService usageQuotaService;
+    private final UsageQuotaService usageQuotaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    // ==================== 会话管理 ====================
-
-    /**
-     * 创建新会话
-     */
-    @PostMapping("/session")
-    public R<SessionResponse> createSession() {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        String sessionId = conversationService.createSession(currentUserId);
-        log.info("会话创建成功：sessionId={}", sessionId);
-        return R.success("会话创建成功", SessionResponse.of(sessionId, null));
-    }
-
-    /**
-     * 获取或创建会话（用于会话复用）
-     */
-    @PostMapping("/session/active")
-    public R<SessionResponse> getOrCreateSession() {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        String sessionId = conversationService.getOrCreateSession(currentUserId);
-        ChatSession session = conversationService.getSession(sessionId);
-        SessionResponse response = SessionResponse.of(
-                sessionId, session != null ? session.getMode() : "text",
-                session != null ? session.getModel() : langChain4jConfig.getActiveModel(),
-                session != null
-        );
-        log.info("会话获取/创建：sessionId={}, reused={}", sessionId, response.getReused());
-        return R.success(response);
-    }
-
-    // ==================== 消息发送 ====================
 
     /**
      * 发送聊天消息
@@ -217,179 +185,6 @@ public class ChatController {
         return emitter;
     }
 
-    // ==================== 会话操作 ====================
-
-    /**
-     * 清除会话历史
-     */
-    @PostMapping("/session/{sessionId}/clear")
-    public R<SessionResponse> clearSession(@PathVariable String sessionId, jakarta.servlet.http.HttpServletRequest httpRequest) {
-        conversationService.ensureAccessible(sessionId,
-                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
-        conversationService.clearSession(sessionId);
-        log.info("会话历史已清除：sessionId={}", sessionId);
-        // V2.4.0 C2：审计——清空会话消息
-        auditService.record(httpRequest, "session.clear", "chat_session", sessionId, null, true);
-        return R.success("会话历史已清除", SessionResponse.of(sessionId, null));
-    }
-
-    /**
-     * 删除会话
-     */
-    @DeleteMapping("/session/{sessionId}")
-    public R<SessionResponse> deleteSession(@PathVariable String sessionId, jakarta.servlet.http.HttpServletRequest httpRequest) {
-        conversationService.ensureAccessible(sessionId,
-                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
-        conversationService.deleteSession(sessionId);
-        log.info("会话已删除：sessionId={}", sessionId);
-        // V2.4.0 C2：审计——删除会话
-        auditService.record(httpRequest, "session.delete", "chat_session", sessionId, null, true);
-        return R.success("会话已删除", SessionResponse.of(sessionId, null));
-    }
-
-    /**
-     * 获取会话列表
-     */
-    @GetMapping("/sessions")
-    public R<SessionListResponse> getSessions(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer size) {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        List<ChatSession> sessions = conversationService.getSessionsByUserId(currentUserId);
-        long total = conversationService.getSessionCountByUserId(currentUserId);
-        return R.success(SessionListResponse.of(sessions, (int) total, page, size));
-    }
-
-    /**
-     * T2.1 会话重命名（remark 即标题）
-     */
-    @PatchMapping("/session/{sessionId}/title")
-    public R<SessionResponse> renameSession(@PathVariable String sessionId,
-                                               @RequestBody Map<String, String> body) {
-        conversationService.ensureAccessible(sessionId,
-                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
-        String remark = body.get("remark");
-        if (remark == null || remark.isBlank()) {
-            throw new BizException(400, "会话名称不能为空");
-        }
-        if (remark.length() > 100) {
-            throw new BizException(400, "会话名称过长（≤100 字符）");
-        }
-        conversationService.renameSession(sessionId, remark.trim());
-        return R.success("会话已重命名", SessionResponse.of(sessionId, null));
-    }
-
-    /**
-     * V1.1.0 C1/T1.2：派生子会话——克隆父 systemPrompt + 上下文摘要为起点，父子独立演进
-     */
-    @PostMapping("/session/{sessionId}/derive")
-    public R<SessionResponse> deriveSession(@PathVariable String sessionId) {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        conversationService.ensureAccessible(sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
-        String childId = conversationService.deriveSession(sessionId, currentUserId);
-        log.info("派生子会话成功：parent={}, child={}", sessionId, childId);
-        return R.success("子会话已创建", SessionResponse.of(childId, null));
-    }
-
-    /**
-     * T2.2 会话归组 / 移组（groupName=null 或空 = 移出分组）
-     */
-    @PatchMapping("/session/{sessionId}/group")
-    public R<SessionResponse> setSessionGroup(@PathVariable String sessionId,
-                                                 @RequestBody Map<String, String> body) {
-        conversationService.ensureAccessible(sessionId,
-                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
-        String groupName = body.get("groupName");
-        if (groupName != null && groupName.length() > 50) {
-            throw new BizException(400, "分组名过长（≤50 字符）");
-        }
-        conversationService.setSessionGroup(sessionId,
-                groupName == null || groupName.isBlank() ? null : groupName.trim());
-        return R.success("会话分组已更新", SessionResponse.of(sessionId, null));
-    }
-
-    /**
-     * T2.3 删除分组（会话回落「默认」组）
-     */
-    @DeleteMapping("/groups/{groupName}")
-    public R<Map<String, Object>> dissolveGroup(@PathVariable String groupName, jakarta.servlet.http.HttpServletRequest httpRequest) {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        if (currentUserId == null) {
-            throw new BizException(401, "请先登录");
-        }
-        int affected = conversationService.dissolveGroup(groupName, currentUserId);
-        // V2.4.0 C2：审计——解散会话分组
-        auditService.record(httpRequest, "group.dissolve", "chat_session_group", groupName, null, true);
-        return R.success("分组已删除", Map.of("affected", affected));
-    }
-
-    /**
-     * T2.2 当前用户分组清单
-     */
-    @GetMapping("/groups")
-    public R<List<String>> listGroups() {
-        return R.success(conversationService.listGroups(usageQuotaService.resolveCurrentUserId()));
-    }
-
-    // ==================== T3 上下文压缩（v1.0.1 B3） ====================
-
-    /**
-     * T3.1 手动压缩：旧消息合并进滚动摘要（当前激活 chat 模型执行）
-     */
-    @PostMapping("/session/{sessionId}/compact")
-    public R<java.util.Map<String, Object>> compactSession(
-            @PathVariable String sessionId,
-            @RequestParam(required = false) Integer keepRecent) {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        conversationService.ensureAccessible(sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
-        java.util.Map<String, Object> conf = contextCompactService.loadUserSettings(currentUserId);
-        int keep = keepRecent != null ? keepRecent : ((Number) conf.get("keepRecent")).intValue();
-        String summary = contextCompactService.compact(sessionId, currentUserId, keep);
-        java.util.Map<String, Object> r = new java.util.HashMap<>();
-        r.put("summary", summary == null ? "" : summary);
-        r.put("keepRecent", keep);
-        return R.success(r);
-    }
-
-    /**
-     * T3.2 读当前用户压缩配置
-     */
-    @GetMapping("/settings/compact")
-    public R<java.util.Map<String, Object>> getCompactSettings() {
-        return R.success(userSettingService.loadSettings(usageQuotaService.resolveCurrentUserId()));
-    }
-
-    /**
-     * T3.3 写当前用户压缩配置（部分更新：只传的字段生效）
-     */
-    @PostMapping("/settings/compact")
-    public R<java.util.Map<String, Object>> saveCompactSettings(
-            @RequestBody java.util.Map<String, Object> patch) {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        userSettingService.saveSettings(currentUserId, patch);
-        return R.success(userSettingService.loadSettings(currentUserId));
-    }
-
-    /**
-     * T5 上下文用量（前端环形指示）：used/threshold/percent/autoCompact
-     */
-    @GetMapping("/session/{sessionId}/context-usage")
-    public R<java.util.Map<String, Object>> getContextUsage(@PathVariable String sessionId) {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        conversationService.ensureAccessible(sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
-        return R.success(contextCompactService.getContextUsage(sessionId, currentUserId));
-    }
-
-    // ==================== T3.1 斜杠命令（v1.0.1 B4） ====================
-
-    /**
-     * 命令清单（前端 / 补全提示用）
-     */
-    @GetMapping("/commands")
-    public R<List<com.gewu.module.chat.service.CommandService.CommandSpec>> listCommands() {
-        return R.success(commandService.listCommands());
-    }
-
     /**
      * 流式执行斜杠命令（SSE：chunk 逐步过程 + done 收尾；/reset 的 done 带 newSessionId）
      */
@@ -406,90 +201,11 @@ public class ChatController {
     }
 
     /**
-     * T3.4 自动压缩钩子：autoCompact 开且估算 token 超阈值时，先压缩再放行发送。
-     * 压缩失败仅记日志不阻断（对话可用性优先）。
+     * 命令清单（前端 / 补全提示用）
      */
-    private void autoCompactIfNeeded(String sessionId, Long userId) {
-        try {
-            if (contextCompactService.shouldAutoCompact(sessionId, userId)) {
-                java.util.Map<String, Object> conf = contextCompactService.loadUserSettings(userId);
-                int keep = ((Number) conf.get("keepRecent")).intValue();
-                log.info("[T3.4] 自动压缩触发：sessionId={}, keepRecent={}", sessionId, keep);
-                contextCompactService.compact(sessionId, userId, keep);
-            }
-        } catch (Exception e) {
-            log.warn("[T3.4] 自动压缩失败（不阻断对话）：sessionId={}, err={}", sessionId, e.getMessage());
-        }
-    }
-
-
-    /**
-     * 获取会话详情
-     */
-    @GetMapping("/session/{sessionId}")
-    public R<ChatSession> getSession(@PathVariable String sessionId) {
-        Long currentUserId = usageQuotaService.resolveCurrentUserId();
-        ChatSession session = conversationService.ensureAccessible(
-                sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
-        return R.success(session);
-    }
-
-    /**
-     * 获取会话消息列表
-     */
-    @GetMapping("/session/{sessionId}/messages")
-    public R<MessageListResponse> getMessages(@PathVariable String sessionId) {
-        conversationService.ensureAccessible(sessionId,
-                usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
-        List<com.gewu.module.chat.entity.ChatMessage> messages =
-                conversationService.getSessionMessages(sessionId);
-        return R.success(MessageListResponse.of(messages));
-    }
-
-    /**
-     * 获取 Token 使用统计
-     */
-    @GetMapping("/session/{sessionId}/stats")
-    public R<TokenStatsResponse> getTokenStats(@PathVariable String sessionId) {
-        com.gewu.module.chat.entity.TokenUsage stats = tokenUsageService.getSessionStats(sessionId);
-        TokenStatsResponse response;
-        if (stats != null) {
-            response = TokenStatsResponse.of(sessionId,
-                    stats.getInputTokens() != null ? stats.getInputTokens() : 0,
-                    stats.getOutputTokens() != null ? stats.getOutputTokens() : 0,
-                    stats.getTotalTokens() != null ? stats.getTotalTokens() : 0,
-                    stats.getCost() != null ? stats.getCost() : BigDecimal.ZERO);
-        } else {
-            response = TokenStatsResponse.of(sessionId, 0, 0, 0, BigDecimal.ZERO);
-        }
-        return R.success(response);
-    }
-
-    // ==================== 模式管理 ====================
-
-    /**
-     * 切换模式（文本/多模态，多模态预留）
-     */
-    @PostMapping("/mode")
-    public R<ModeStatusView> switchMode(@RequestBody SwitchModeRequest request) {
-        boolean multimodal = request.getMultimodal() != null && request.getMultimodal();
-        log.info("切换模式请求：multimodal={}", multimodal);
-
-        if (multimodal) {
-            log.info("多模态模式预留中（P3 后置图像输入），保持文本模式");
-        }
-
-        String currentModel = langChain4jConfig.getActiveModel();
-        return R.success(ModeStatusView.of("text", false, currentModel));
-    }
-
-    /**
-     * 获取当前模式状态
-     */
-    @GetMapping("/mode")
-    public R<ModeStatusView> getMode() {
-        String currentModel = langChain4jConfig.getActiveModel();
-        return R.success(ModeStatusView.of("text", false, currentModel));
+    @GetMapping("/commands")
+    public R<List<com.gewu.module.chat.service.CommandService.CommandSpec>> listCommands() {
+        return R.success(commandService.listCommands());
     }
 
     /**
@@ -511,75 +227,21 @@ public class ChatController {
         return R.success(result);
     }
 
-    // ==================== 模型管理 ====================
-
     /**
-     * 获取可用模型列表
+     * T3.4 自动压缩钩子：autoCompact 开且估算 token 超阈值时，先压缩再放行发送。
+     * 压缩失败仅记日志不阻断（对话可用性优先）。
      */
-    @GetMapping("/models")
-    public R<Map<String, Object>> getAvailableModels() {
-        List<Map<String, Object>> models = langChain4jConfig.getModels().entrySet().stream()
-                .map(entry -> {
-                    String modelId = entry.getKey();
-                    LangChain4jConfig.ModelConfig config = entry.getValue();
-                    Map<String, Object> item = new HashMap<>();
-                    item.put("id", modelId);
-                    item.put("provider", config.getProvider());
-                    item.put("modelName", config.getModelName());
-                    item.put("description", config.getDescription() != null
-                            ? config.getDescription() : config.getModelName());
-                    item.put("active", modelId.equals(langChain4jConfig.getActiveModel()));
-                    return item;
-                })
-                .collect(Collectors.toList());
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("models", models);
-        response.put("activeModel", langChain4jConfig.getActiveModel());
-        response.put("count", models.size());
-        return R.success(response);
-    }
-
-    /**
-     * 切换 AI 模型
-     */
-    @PostMapping("/model")
-    public R<Map<String, Object>> switchModel(@RequestBody Map<String, String> request) {
-        String modelId = request.get("modelId");
-        log.info("切换 AI 模型：{}", modelId);
-
-        LangChain4jConfig.ModelConfig config = langChain4jConfig.getModels().get(modelId);
-        if (config == null) {
-            throw new BizException(ErrorCode.BAD_REQUEST.getCode(),
-                    "未知模型 ID: " + modelId);
+    private void autoCompactIfNeeded(String sessionId, Long userId) {
+        try {
+            if (contextCompactService.shouldAutoCompact(sessionId, userId)) {
+                java.util.Map<String, Object> conf = contextCompactService.loadUserSettings(userId);
+                int keep = ((Number) conf.get("keepRecent")).intValue();
+                log.info("[T3.4] 自动压缩触发：sessionId={}, keepRecent={}", sessionId, keep);
+                contextCompactService.compact(sessionId, userId, keep);
+            }
+        } catch (Exception e) {
+            log.warn("[T3.4] 自动压缩失败（不阻断对话）：sessionId={}, err={}", sessionId, e.getMessage());
         }
-
-        String oldModel = langChain4jConfig.getActiveModel();
-        langChain4jConfig.setActiveModel(modelId);
-        langChain4jConfig.evictAllChatModels();
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("oldModel", oldModel);
-        response.put("newModel", modelId);
-        response.put("modelName", config.getModelName());
-        return R.success("模型切换成功", response);
     }
 
-    /**
-     * 获取当前模型信息
-     */
-    @GetMapping("/model")
-    public R<Map<String, Object>> getCurrentModel() {
-        String modelId = langChain4jConfig.getActiveModel();
-        LangChain4jConfig.ModelConfig config = langChain4jConfig.getModels().get(modelId);
-
-        Map<String, Object> modelInfo = new HashMap<>();
-        modelInfo.put("id", modelId);
-        modelInfo.put("modelName", config != null ? config.getModelName() : "unknown");
-        modelInfo.put("provider", config != null ? config.getProvider() : "unknown");
-        modelInfo.put("description", config != null && config.getDescription() != null
-                ? config.getDescription() : modelId);
-        modelInfo.put("active", true);
-        return R.success(modelInfo);
-    }
 }

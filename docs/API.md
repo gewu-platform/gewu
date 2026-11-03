@@ -16,7 +16,7 @@
 |---|---|---|
 | 认证 | `/api/auth` | login/register/refresh/me/logout |
 | 用户 | `/api/user` | profile/password |
-| 对话 | `/api/chat` | 会话管理 + 同步/流式消息 + 多模态 |
+| 对话 | `/api/chat` | 消息收发/会话管理/压缩与模型设置（27 端点，3 个控制器） |
 | Agent | `/api/agent` | 对话（4 入口）/工具/审批/定义 CRUD |
 | 知识库 | `/api/knowledge` | 文档上传/解析/检索 |
 | 监控 | `/api/monitor` | 统计/日志/模型排行/用量报表（T6） |
@@ -33,6 +33,9 @@
 
 ## 对话（/api/chat）
 
+> 实现侧拆为三个控制器（`ChatController` 消息链路 / `ChatSessionController` 会话生命周期 /
+> `ChatSettingsController` 压缩与模式），共享 `/api/chat` 前缀，对外契约不变。
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/session` | 创建会话 |
@@ -45,9 +48,12 @@
 | POST | `/session/{id}/clear` | 清空历史 |
 | POST | `/message` | 同步对话 |
 | POST | `/message/stream` | 流式对话（SSE） |
+<!-- 多模态预留说明 -->
+> `POST /message` 与 `/message/stream` 接受 `useMultimodal` / `imageUrls` 字段，
+> 但当前**仅按文本模式处理**（图像输入为预留能力，尚未实现）。
 | POST | `/mode` | 切换会话模式 |
+| GET | `/health` | 健康探活（激活模型 / provider / key 是否已配置） |
 | GET | `/models` | 可用模型列表 |
-| POST | `/upload` | 上传多模态图片 |
 
 ### 会话管理扩展（V1.0.1 / V1.1.0）
 
