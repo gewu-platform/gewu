@@ -106,6 +106,32 @@ cd ../gewu-web && npm i && npm run dev   # 前端仓库：github.com/gewu-platfo
 
 详见 [SECURITY.md](SECURITY.md)。
 
+## 📊 数据流向与隐私
+
+**一句话**：状态、记忆、凭据都存在你自己的机器上；格物本身不向你之外的任何地方发数据。
+
+| 数据类别 | 存放位置 | 是否外发 |
+|---|---|---|
+| 会话消息 / 会话元数据 | 本地 PostgreSQL（`chat_message` / `chat_session`） | 否 |
+| 知识库文档与向量 | 本地 PostgreSQL + pgvector（`document_chunk.embedding`） | 否 |
+| 模型凭据（API Key） | 本地 DB（`sk-****` 掩码返回，不落明文日志） | 否 |
+| Agent 定义 / 提示词 / Skill 引用 | 本地 PostgreSQL | 否 |
+| 审计日志 | 本地 PostgreSQL（`audit_log`，密钥字段掩码） | 否 |
+| LLM 调用监控 | 本地 PostgreSQL（`llm_call_log`） | 否 |
+
+**实际会外发的，只有两类**：
+
+1. **模型调用**：你的提示词与上下文会发给你**自己配置的**模型服务商（火山方舟 / OpenAI 兼容端点 / 本地 Ollama）。
+   这是 LLM 应用的固有行为——不把内容发给模型，就无法得到回答。发往哪家、用哪个 key，完全由你在「模型配置中心」决定。
+2. **外部工具调用**：若你启用 MCP 插件或联网搜索工具，其请求会发往**你在插件 / MCP 配置中填写的**端点上。未配置则不发生。
+
+**格物自身不外发的**：无遥测、无使用统计上报、无版本检查、无崩溃上报、无「匿名改进计划」。
+
+> 本文档随功能演进同步更新。若未来引入任何统计或版本检查，规则是**默认关闭且可配置**——
+> 且必须在此处提前声明，不会悄悄开启。
+
+---
+
 ## 📖 文档
 
 | 文档 | 内容 |
@@ -114,7 +140,7 @@ cd ../gewu-web && npm i && npm run dev   # 前端仓库：github.com/gewu-platfo
 | [docs/EXTEND-TOOL.md](docs/EXTEND-TOOL.md) | 自定义工具开发（3 步接入） |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构地图 + 数据流 + 扩展点 |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Docker / nginx 部署 + 离线包 + FAQ |
-| [docs/V1.0-PLAN.md](docs/V1.0-PLAN.md) | 版本规划 |
+| [docs/plan/V1.0-PLAN.md](docs/plan/V1.0-PLAN.md) | 版本规划 |
 
 ## English · Quick Start (brief)
 
