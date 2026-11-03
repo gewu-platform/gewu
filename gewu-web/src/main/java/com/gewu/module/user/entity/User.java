@@ -1,4 +1,4 @@
-package com.gewu.module.auth.entity;
+package com.gewu.module.user.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;

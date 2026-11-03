@@ -4,7 +4,7 @@ import com.gewu.common.ErrorCode;
 import com.gewu.common.BizException;
 import com.gewu.common.R;
 import com.gewu.module.auth.dto.*;
-import com.gewu.module.auth.entity.User;
+import com.gewu.module.user.entity.User;
 import com.gewu.module.auth.service.SysTokenService;
 import com.gewu.module.user.dto.UserInfoDTO;
 import com.gewu.module.user.service.UserService;

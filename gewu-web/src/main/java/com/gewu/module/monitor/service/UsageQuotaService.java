@@ -1,8 +1,8 @@
 package com.gewu.module.monitor.service;
 
 import com.gewu.module.monitor.mapper.LlmCallLogMapper;
-import com.gewu.module.auth.entity.User;
-import com.gewu.module.auth.mapper.UserMapper;
+import com.gewu.module.user.entity.User;
+import com.gewu.module.user.mapper.UserMapper;
 import com.gewu.infrastructure.security.AdminAccounts;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;

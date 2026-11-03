@@ -1,8 +1,8 @@
-package com.gewu.module.auth.mapper;
+package com.gewu.module.user.mapper;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.gewu.module.auth.entity.User;
+import com.gewu.module.user.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 
 /**

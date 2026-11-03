@@ -1,8 +1,8 @@
 package com.gewu.infrastructure.security;
 
 import com.gewu.infrastructure.security.AdminAccounts;
-import com.gewu.module.auth.entity.User;
-import com.gewu.module.auth.mapper.UserMapper;
+import com.gewu.module.user.entity.User;
+import com.gewu.module.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.GrantedAuthority;
