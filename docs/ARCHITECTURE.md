@@ -10,30 +10,88 @@ gewu/
 ├── gewu-client/        LLM 客户端层：LangChain4jConfig 动态工厂 + EmbeddingModelConfig
 ├── gewu-web/           业务主模块（Spring Boot 启动类）
 │   └── src/main/java/com/gewu/
-│       ├── framework/          安全配置（SecurityConfig/JWT）
-│       ├── infrastructure/      JWT 过滤器、UserDetailsService、AdminAccounts
-│       └── module/
-│           ├── auth/            登录注册（JWT + DB 令牌校验）
-│           ├── user/            用户资料
-│           ├── chat/            会话/消息/多模态对话/SSE
-│           ├── agent/           编排核心（见下）
-│           ├── knowledge/       知识库（上传/解析/向量检索）
-│           ├── monitor/        监控 + 用量报表 + 配额（T6）+ 审计（V2.4.0）
-│           ├── settings/       模型配置中心（T3）+ 技能库（V2.0.0）
-│           ├── mcp/            MCP 客户端与桥接（V1.1.0 C3）
-│           ├── plugin/         插件仓库（V2.0.0）
+│       ├── config/           @Configuration 类：Async / MybatisPlus / Scheduling
+│       ├── infrastructure/   基础设施域（有运行时行为，非配置）
+│       │   ├── security/       JWT 过滤器、UserDetailsService、SecurityConfig、登录限速
+│       │   ├── ratelimit/      令牌桶限流（RateLimitService + Filter）
+│       │   ├── tracing/        TraceIdFilter（链路 ID）
+│       │   └── redis/          Redis 缓存服务（可选加速层）
+│       └── module/           业务域（依赖方向见下「模块依赖矩阵」）
+│           ├── auth/            登录注册（JWT + DB 令牌校验）→ user
+│           ├── user/            用户资料 + 用户设置（基础域，无反向依赖）
+│           ├── chat/            会话/消息/多模态对话/SSE → monitor, user
+│           ├── agent/           编排核心（见「Agent 编排核心」）
+│           ├── knowledge/       知识库（上传/解析/向量检索）→ setting
+│           ├── monitor/         监控 + 用量报表 + 配额（T6）→ user
+│           ├── audit/           审计日志（V2.4.0 C2，横切关注点，零业务模块依赖）
+│           ├── setting/         模型配置中心（T3）+ 技能库（V2.0.0）
+│           ├── mcp/            MCP 客户端与桥接（V1.1.0 C3）→ agent
+│           ├── plugin/         插件仓库（V2.0.0）→ mcp
 │           └── prompt/         提示词模板（版本化）
-│       ├── config/            横切组件：RateLimitService/Filter、TraceIdFilter、调度与 MyBatis 配置
 ├── database/gewu-init.sql   单文件真相源（幂等，可重跑 0 ERROR）
 ├── database/migrations/     Flyway 增量（已有库升级路径）
 ├── docker/                  构建入口索引（README.md）+ jar/ 预打包产物；
 │                            配置文件仍在根目录（.dockerignore/.env/compose 路径基准约束）
 └── docs/                    本文档套件
+
+### 模块依赖矩阵（2026-11-03 重构后，零循环）
+
+```
+agent     → chat, knowledge, monitor
+audit     → (独立)
+auth      → user
+chat      → monitor, user
+knowledge → setting
+mcp       → agent
+monitor   → user
+plugin    → mcp
+prompt    → (独立)
+setting   → (独立)
+user      → (独立)
+```
+
+**规则**：依赖只能自上而下指向更基础的域，禁止反向与横向双向。
+`auth → user`、`monitor → user` 这类单向依赖是正确方向；
+历史问题（`auth ↔ user` 双向、`monitor → auth` 倒挂）已在 V2.5.0 重构中消除。
 ```
 
 前端：`gewu-web`（Vue 3 + Vite，`src/views/` 每页面一个 View，`src/api/` 每模块一个 api 文件）。
 
 ## Agent 编排核心（module/agent）
+
+### agent 子包结构
+
+```
+module/agent/
+├── controller/   AgentController（/api/agent/** 5 个对话入口）+ SkillLibraryController
+│                 + ToolRiskController
+├── service/      AgentService（编排主循环，门面）
+│                 AgentApprovalWaiter（审批挂起/唤醒）
+│                 AgentExecutionService（checkpoint 持久化）
+├── dispatch/     派发契约（SubAgentRunner 接口 / DispatchContext / DispatchScope /
+│                 SubAgentResult）—— tools 与 service 的解耦点
+├── tools/        工具实现（@Tool 注解，**必须在此包**，见下方陷阱说明）+ ToolRegistry
+│                 + ToolRisk / SandboxPolicy（风险与执行策略）
+├── sandbox/      进程级沙箱（SandboxRunner / SandboxWorker / SandboxAdapter 及实现）
+├── registry/     AgentRegistry（定义注册中心，模板 = enabled=false 的定义）
+├── gateway/      ToolApprovalGateway（审批闸门，new 创建非 Spring Bean）
+├── skill/        SkillLibraryService（公共 Skill 库，只读扫描）
+├── support/      AgentTextUtils（纯函数：JSON/截断/token 估算）
+├── definition/   AgentDefinition / AgentConfig
+├── dto/          AgentChatRequest / AgentStreamResponse 等
+├── entity/       AgentDefinitionEntity / AgentExecution
+├── mapper/       AgentDefinitionMapper / AgentExecutionMapper
+└── schedule/     CheckpointScheduler（过期审批清理）
+```
+
+> ⚠️ **陷阱：工具类必须留在 `module/agent/tools` 包**。
+> `ToolRegistry.autoScanRegister()` 用硬编码前缀 `"com.gewu.module.agent.tools."` 过滤
+> `@Component` Bean。任何工具实现类移出该包，自动扫描会**静默失效**——编译通过、
+> 单测可能通过，但运行时该工具根本不存在。若确需调整，必须同步修改该判断。
+
+> **依赖方向**：`tools → dispatch ← service`，`service → tools`。
+> 工具不直接依赖 service（历史问题 `service ↔ tools` 双向依赖已消除）。
+
 
 ```
 AgentController（/api/agent/**，5 个对话入口）
@@ -231,7 +289,6 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
 **同步规则（必守）**：每次新增迁移后，**必须同步更新 `init.sql`**，保持快照完整。
 否则新库必须依赖 Flyway 跑完才有完整结构——这是依赖启动顺序的隐性坑。
 两边都使用 `IF NOT EXISTS`，重复执行安全。
-
 
 - `database/gewu-init.sql`：**建库真相源**（Docker compose / 空库初始化），16 表全量幂等
 - `database/migrations/V{n}__*.sql`：**Flyway 增量**，只管 V2+ 变更（与 init.sql 同目录）
