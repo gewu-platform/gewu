@@ -26,6 +26,27 @@ jobs:
       - name: Package
         run: mvn -B -q package -DskipTests
 
+      # V2.5.0 D5：依赖漏洞扫描（报告型，不阻断）
+      # NVD_API_KEY 未配置时依赖缓存库，可能较慢或告警；仅产出报告供人工跟进
+      - name: Dependency scan (OWASP dependency-check)
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: gewu-backend
+          path: '.'
+          format: 'HTML'
+          args: >-
+            --enableExperimental
+            --failOnCVSS 9
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+      - name: Upload dependency-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: '**/dependency-check-report.*'
+
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
@@ -49,3 +70,8 @@ jobs:
       - name: Build
         working-directory: gewu-web
         run: npm run build
+
+      # V2.5.0 D5：前端依赖漏洞审计（--audit-level=high，首版不阻断，仅报告）
+      - name: npm audit
+        working-directory: gewu-web
+        run: npm audit --audit-level=high || true
