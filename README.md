@@ -121,6 +121,7 @@ cd ../gewu-web && npm i && npm run dev   # 前端仓库：github.com/gewu-platfo
 | Agent 定义 / 提示词 / Skill 引用 | 本地 PostgreSQL | 否 |
 | 审计日志 | 本地 PostgreSQL（`audit_log`，密钥字段掩码） | 否 |
 | LLM 调用监控 | 本地 PostgreSQL（`llm_call_log`） | 否 |
+| 上传的原始文件（知识库 / 对话附件） | 文件存储服务 MinIO（自部署，桶内对象；容器部署需挂载其数据卷） | 否 |
 
 **实际会外发的，只有两类**：
 
@@ -132,6 +133,14 @@ cd ../gewu-web && npm i && npm run dev   # 前端仓库：github.com/gewu-platfo
 
 > 本文档随功能演进同步更新。若未来引入任何统计或版本检查，规则是**默认关闭且可配置**——
 > 且必须在此处提前声明，不会悄悄开启。
+**如何自行核对**（不依赖本声明，直接看代码/网络）：
+
+1. **静态扫描**：全仓库检索 `telemetry|analytics|sentry|crash|checkUpdate` 等关键词，
+   除 prompt 模板的 `selectLatestVersion`（版本管理，非外发检查）外无匹配
+2. **网络观察**：启动后不发起任何对话时，除数据库连接外无出站连接；
+   发起对话时仅有到「模型配置中心」所配端点的连接
+3. **前端资源**：前端构建产物无第三方 CDN / 字体 / 埋点脚本，
+   全部依赖随 `npm i` 本地安装
 
 ---
 
