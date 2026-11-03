@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ChatStreamResponseDTO {
+public class ChatStreamResponse {
 
     private String type;
 
@@ -36,20 +36,20 @@ public class ChatStreamResponseDTO {
     /** error 事件：错误信息 */
     private String error;
 
-    public static ChatStreamResponseDTO chunk(String sessionId, String chunk) {
-        return ChatStreamResponseDTO.builder()
+    public static ChatStreamResponse chunk(String sessionId, String chunk) {
+        return ChatStreamResponse.builder()
                 .type("chunk").sessionId(sessionId).chunk(chunk).build();
     }
 
-    public static ChatStreamResponseDTO done(String sessionId, String reply, String model,
+    public static ChatStreamResponse done(String sessionId, String reply, String model,
                                              int inputTokens, int outputTokens) {
-        return ChatStreamResponseDTO.builder()
+        return ChatStreamResponse.builder()
                 .type("done").sessionId(sessionId).reply(reply).model(model)
                 .inputTokens(inputTokens).outputTokens(outputTokens).build();
     }
 
-    public static ChatStreamResponseDTO error(String sessionId, String error) {
-        return ChatStreamResponseDTO.builder()
+    public static ChatStreamResponse error(String sessionId, String error) {
+        return ChatStreamResponse.builder()
                 .type("error").sessionId(sessionId).error(error).build();
     }
 }

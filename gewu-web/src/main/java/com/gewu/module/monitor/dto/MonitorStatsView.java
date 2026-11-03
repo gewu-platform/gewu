@@ -9,7 +9,7 @@ import java.util.List;
  * 监控统计 DTO（对齐 java-ai-native MonitorStatsDTO）
  */
 @Data
-public class MonitorStatsDTO {
+public class MonitorStatsView {
 
     /**
      * 今日调用次数
@@ -39,10 +39,10 @@ public class MonitorStatsDTO {
     /**
      * 模型使用排行
      */
-    private List<ModelUsageDTO> topModels;
+    private List<ModelUsageView> topModels;
 
     /**
      * 24小时调用分布
      */
-    private List<HourlyStatDTO> hourlyDistribution;
+    private List<HourlyStatView> hourlyDistribution;
 }

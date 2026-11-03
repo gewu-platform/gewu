@@ -14,14 +14,14 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MessageListResponseDTO {
+public class MessageListResponse {
 
     private List<com.gewu.module.chat.entity.ChatMessage> messages;
 
     private Integer count;
 
-    public static MessageListResponseDTO of(List<com.gewu.module.chat.entity.ChatMessage> messages) {
-        return MessageListResponseDTO.builder()
+    public static MessageListResponse of(List<com.gewu.module.chat.entity.ChatMessage> messages) {
+        return MessageListResponse.builder()
                 .messages(messages)
                 .count(messages != null ? messages.size() : 0)
                 .build();

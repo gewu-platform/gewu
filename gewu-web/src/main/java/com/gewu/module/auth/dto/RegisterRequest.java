@@ -8,7 +8,7 @@ import lombok.Data;
  * 用户注册请求 DTO（对齐 java-ai-native）
  */
 @Data
-public class RegisterRequestDTO {
+public class RegisterRequest {
     @NotBlank(message = "用户名不能为空")
     @Size(min = 2, max = 50, message = "用户名长度为2-50个字符")
     private String username;

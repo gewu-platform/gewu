@@ -1,9 +1,9 @@
 package com.gewu.module.monitor.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.gewu.module.monitor.dto.HourlyStatDTO;
-import com.gewu.module.monitor.dto.UsageReportDTO;
-import com.gewu.module.monitor.dto.ModelUsageDTO;
+import com.gewu.module.monitor.dto.HourlyStatView;
+import com.gewu.module.monitor.dto.UsageReportView;
+import com.gewu.module.monitor.dto.ModelUsageView;
 import com.gewu.module.monitor.entity.LlmCallLog;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -58,7 +58,7 @@ public interface LlmCallLogMapper extends BaseMapper<LlmCallLog> {
             + "COALESCE(SUM(cost), 0) AS totalCost "
             + "FROM llm_call_log WHERE create_time >= #{startOfDay} "
             + "GROUP BY model_name ORDER BY callCount DESC")
-    List<ModelUsageDTO> modelUsageToday(@Param("startOfDay") LocalDateTime startOfDay);
+    List<ModelUsageView> modelUsageToday(@Param("startOfDay") LocalDateTime startOfDay);
 
     /**
      * 24小时调用分布（今日）
@@ -67,7 +67,7 @@ public interface LlmCallLogMapper extends BaseMapper<LlmCallLog> {
             + "COALESCE(AVG(latency), 0) AS avgLatency "
             + "FROM llm_call_log WHERE create_time >= #{startOfDay} "
             + "GROUP BY EXTRACT(HOUR FROM create_time) ORDER BY \"hour\"")
-    List<HourlyStatDTO> hourlyDistributionToday(@Param("startOfDay") LocalDateTime startOfDay);
+    List<HourlyStatView> hourlyDistributionToday(@Param("startOfDay") LocalDateTime startOfDay);
 
     /**
      * T6 用量报表：按天聚合（近 N 天）
@@ -79,7 +79,7 @@ public interface LlmCallLogMapper extends BaseMapper<LlmCallLog> {
             + "COALESCE(SUM(cost), 0) AS totalCost "
             + "FROM llm_call_log WHERE create_time >= #{start} AND create_time < #{end} "
             + "GROUP BY TO_CHAR(create_time, 'YYYY-MM-DD') ORDER BY groupKey")
-    List<UsageReportDTO> usageByDay(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+    List<UsageReportView> usageByDay(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     /**
      * T6 用量报表：按用户聚合（llm_call_log.user_id，null 归为未知）
@@ -93,7 +93,7 @@ public interface LlmCallLogMapper extends BaseMapper<LlmCallLog> {
             + "FROM llm_call_log l LEFT JOIN sys_user u ON u.id = l.user_id "
             + "WHERE l.create_time >= #{start} AND l.create_time < #{end} "
             + "GROUP BY COALESCE(CAST(user_id AS VARCHAR), 'unknown') ORDER BY totalTokens DESC")
-    List<UsageReportDTO> usageByUser(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+    List<UsageReportView> usageByUser(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     /**
      * T6 用量报表：按 Agent 聚合（template_name：agent:{agentId} / agent-smart / 其他为普通 chat 模板）
@@ -105,7 +105,7 @@ public interface LlmCallLogMapper extends BaseMapper<LlmCallLog> {
             + "COALESCE(SUM(cost), 0) AS totalCost "
             + "FROM llm_call_log WHERE create_time >= #{start} AND create_time < #{end} "
             + "GROUP BY template_name ORDER BY totalTokens DESC")
-    List<UsageReportDTO> usageByAgent(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+    List<UsageReportView> usageByAgent(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     /**
      * T6 配额：用户当日已用 tokens

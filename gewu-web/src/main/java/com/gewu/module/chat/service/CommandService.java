@@ -55,7 +55,7 @@ public class CommandService {
     /**
      * 流式执行命令：delta 事件逐步推送执行过程，done 事件收尾
      *
-     * @return SSE 事件流（JSON 串，形态对齐 ChatStreamResponseDTO：type=chunk/done/error）
+     * @return SSE 事件流（JSON 串，形态对齐 ChatStreamResponse：type=chunk/done/error）
      */
     public Flux<String> execute(String sessionId, String input, Long userId) {
         String trimmed = input.trim();

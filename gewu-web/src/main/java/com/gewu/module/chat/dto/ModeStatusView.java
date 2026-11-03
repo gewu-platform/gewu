@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ModeStatusDTO {
+public class ModeStatusView {
 
     /** 当前模式：text / multimodal */
     private String mode;
@@ -24,8 +24,8 @@ public class ModeStatusDTO {
     /** 当前模式下的模型 */
     private String currentModel;
 
-    public static ModeStatusDTO of(String mode, boolean multimodal, String currentModel) {
-        return ModeStatusDTO.builder()
+    public static ModeStatusView of(String mode, boolean multimodal, String currentModel) {
+        return ModeStatusView.builder()
                 .mode(mode).multimodal(multimodal).currentModel(currentModel).build();
     }
 }

@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatResponseDTO {
+public class ChatResponse {
 
     private String sessionId;
 
@@ -22,8 +22,8 @@ public class ChatResponseDTO {
 
     private Boolean multimodal;
 
-    public static ChatResponseDTO success(String sessionId, String response, String model, boolean multimodal) {
-        return ChatResponseDTO.builder()
+    public static ChatResponse success(String sessionId, String response, String model, boolean multimodal) {
+        return ChatResponse.builder()
                 .sessionId(sessionId)
                 .response(response)
                 .model(model)

@@ -14,7 +14,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SessionListResponseDTO {
+public class SessionListResponse {
 
     private List<com.gewu.module.chat.entity.ChatSession> sessions;
 
@@ -24,9 +24,9 @@ public class SessionListResponseDTO {
 
     private Integer size;
 
-    public static SessionListResponseDTO of(List<com.gewu.module.chat.entity.ChatSession> sessions,
+    public static SessionListResponse of(List<com.gewu.module.chat.entity.ChatSession> sessions,
                                             int total, int page, int size) {
-        return SessionListResponseDTO.builder()
+        return SessionListResponse.builder()
                 .sessions(sessions).total(total).page(page).size(size).build();
     }
 }

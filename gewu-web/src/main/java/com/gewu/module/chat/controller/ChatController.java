@@ -8,7 +8,7 @@ import com.gewu.module.chat.dto.*;
 import com.gewu.module.chat.entity.ChatSession;
 import com.gewu.module.chat.service.ConversationService;
 import com.gewu.module.chat.service.TokenUsageService;
-import com.gewu.module.user.dto.UserInfoDTO;
+import com.gewu.module.user.dto.UserInfoView;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,22 +53,22 @@ public class ChatController {
      * 创建新会话
      */
     @PostMapping("/session")
-    public R<SessionResponseDTO> createSession() {
+    public R<SessionResponse> createSession() {
         Long currentUserId = usageQuotaService.resolveCurrentUserId();
         String sessionId = conversationService.createSession(currentUserId);
         log.info("会话创建成功：sessionId={}", sessionId);
-        return R.success("会话创建成功", SessionResponseDTO.of(sessionId, null));
+        return R.success("会话创建成功", SessionResponse.of(sessionId, null));
     }
 
     /**
      * 获取或创建会话（用于会话复用）
      */
     @PostMapping("/session/active")
-    public R<SessionResponseDTO> getOrCreateSession() {
+    public R<SessionResponse> getOrCreateSession() {
         Long currentUserId = usageQuotaService.resolveCurrentUserId();
         String sessionId = conversationService.getOrCreateSession(currentUserId);
         ChatSession session = conversationService.getSession(sessionId);
-        SessionResponseDTO response = SessionResponseDTO.of(
+        SessionResponse response = SessionResponse.of(
                 sessionId, session != null ? session.getMode() : "text",
                 session != null ? session.getModel() : langChain4jConfig.getActiveModel(),
                 session != null
@@ -83,7 +83,7 @@ public class ChatController {
      * 发送聊天消息
      */
     @PostMapping("/message")
-    public R<ChatResponseDTO> sendMessage(@RequestBody ChatRequestDTO request) {
+    public R<ChatResponse> sendMessage(@RequestBody ChatRequest request) {
         log.info("收到聊天请求：sessionId={}, messageLength={}, model={}",
                 request.getSessionId(),
                 request.getMessage() != null ? request.getMessage().length() : 0,
@@ -126,14 +126,14 @@ public class ChatController {
 
         log.info("聊天响应成功：sessionId={}, responseLength={}, model={}",
                 sessionId, response.length(), model);
-        return R.success(ChatResponseDTO.success(sessionId, response, model, false));
+        return R.success(ChatResponse.success(sessionId, response, model, false));
     }
 
     /**
      * 流式发送聊天消息（SSE 流式输出）
      */
     @PostMapping(value = "/message/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter sendMessageStream(@RequestBody ChatRequestDTO request) {
+    public SseEmitter sendMessageStream(@RequestBody ChatRequest request) {
         log.info("收到流式聊天请求：sessionId={}, messageLength={}, model={}",
                 request.getSessionId(),
                 request.getMessage() != null ? request.getMessage().length() : 0,
@@ -179,7 +179,7 @@ public class ChatController {
                                 fullReply.append(chunk);
                             }
                             String json = objectMapper.writeValueAsString(
-                                    ChatStreamResponseDTO.chunk(sessionIdFinal, chunk));
+                                    ChatStreamResponse.chunk(sessionIdFinal, chunk));
                             emitter.send(SseEmitter.event().name("message").data(json));
                         } catch (Exception e) {
                             log.error("SSE 发送失败：{}", e.getMessage());
@@ -188,7 +188,7 @@ public class ChatController {
                     .doOnError(err -> {
                         try {
                             String json = objectMapper.writeValueAsString(
-                                    ChatStreamResponseDTO.error(sessionIdFinal, err.getMessage()));
+                                    ChatStreamResponse.error(sessionIdFinal, err.getMessage()));
                             emitter.send(SseEmitter.event().name("error").data(json));
                         } catch (Exception e) {
                             log.error("SSE 错误发送失败：{}", e.getMessage());
@@ -201,7 +201,7 @@ public class ChatController {
                             outputTokens.set(reply.length() / 4);
                             inputTokens.set(request.getMessage().length() / 4);
                             String json = objectMapper.writeValueAsString(
-                                    ChatStreamResponseDTO.done(sessionIdFinal, reply, model,
+                                    ChatStreamResponse.done(sessionIdFinal, reply, model,
                                             inputTokens.get(), outputTokens.get()));
                             emitter.send(SseEmitter.event().name("done").data(json));
                         } catch (Exception e) {
@@ -223,48 +223,48 @@ public class ChatController {
      * 清除会话历史
      */
     @PostMapping("/session/{sessionId}/clear")
-    public R<SessionResponseDTO> clearSession(@PathVariable String sessionId, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    public R<SessionResponse> clearSession(@PathVariable String sessionId, jakarta.servlet.http.HttpServletRequest httpRequest) {
         conversationService.ensureAccessible(sessionId,
                 usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
         conversationService.clearSession(sessionId);
         log.info("会话历史已清除：sessionId={}", sessionId);
         // V2.4.0 C2：审计——清空会话消息
         auditService.record(httpRequest, "session.clear", "chat_session", sessionId, null, true);
-        return R.success("会话历史已清除", SessionResponseDTO.of(sessionId, null));
+        return R.success("会话历史已清除", SessionResponse.of(sessionId, null));
     }
 
     /**
      * 删除会话
      */
     @DeleteMapping("/session/{sessionId}")
-    public R<SessionResponseDTO> deleteSession(@PathVariable String sessionId, jakarta.servlet.http.HttpServletRequest httpRequest) {
+    public R<SessionResponse> deleteSession(@PathVariable String sessionId, jakarta.servlet.http.HttpServletRequest httpRequest) {
         conversationService.ensureAccessible(sessionId,
                 usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
         conversationService.deleteSession(sessionId);
         log.info("会话已删除：sessionId={}", sessionId);
         // V2.4.0 C2：审计——删除会话
         auditService.record(httpRequest, "session.delete", "chat_session", sessionId, null, true);
-        return R.success("会话已删除", SessionResponseDTO.of(sessionId, null));
+        return R.success("会话已删除", SessionResponse.of(sessionId, null));
     }
 
     /**
      * 获取会话列表
      */
     @GetMapping("/sessions")
-    public R<SessionListResponseDTO> getSessions(
+    public R<SessionListResponse> getSessions(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
         Long currentUserId = usageQuotaService.resolveCurrentUserId();
         List<ChatSession> sessions = conversationService.getSessionsByUserId(currentUserId);
         long total = conversationService.getSessionCountByUserId(currentUserId);
-        return R.success(SessionListResponseDTO.of(sessions, (int) total, page, size));
+        return R.success(SessionListResponse.of(sessions, (int) total, page, size));
     }
 
     /**
      * T2.1 会话重命名（remark 即标题）
      */
     @PatchMapping("/session/{sessionId}/title")
-    public R<SessionResponseDTO> renameSession(@PathVariable String sessionId,
+    public R<SessionResponse> renameSession(@PathVariable String sessionId,
                                                @RequestBody Map<String, String> body) {
         conversationService.ensureAccessible(sessionId,
                 usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
@@ -276,26 +276,26 @@ public class ChatController {
             throw new BizException(400, "会话名称过长（≤100 字符）");
         }
         conversationService.renameSession(sessionId, remark.trim());
-        return R.success("会话已重命名", SessionResponseDTO.of(sessionId, null));
+        return R.success("会话已重命名", SessionResponse.of(sessionId, null));
     }
 
     /**
      * V1.1.0 C1/T1.2：派生子会话——克隆父 systemPrompt + 上下文摘要为起点，父子独立演进
      */
     @PostMapping("/session/{sessionId}/derive")
-    public R<SessionResponseDTO> deriveSession(@PathVariable String sessionId) {
+    public R<SessionResponse> deriveSession(@PathVariable String sessionId) {
         Long currentUserId = usageQuotaService.resolveCurrentUserId();
         conversationService.ensureAccessible(sessionId, currentUserId, usageQuotaService.isCurrentUserAdmin());
         String childId = conversationService.deriveSession(sessionId, currentUserId);
         log.info("派生子会话成功：parent={}, child={}", sessionId, childId);
-        return R.success("子会话已创建", SessionResponseDTO.of(childId, null));
+        return R.success("子会话已创建", SessionResponse.of(childId, null));
     }
 
     /**
      * T2.2 会话归组 / 移组（groupName=null 或空 = 移出分组）
      */
     @PatchMapping("/session/{sessionId}/group")
-    public R<SessionResponseDTO> setSessionGroup(@PathVariable String sessionId,
+    public R<SessionResponse> setSessionGroup(@PathVariable String sessionId,
                                                  @RequestBody Map<String, String> body) {
         conversationService.ensureAccessible(sessionId,
                 usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
@@ -305,7 +305,7 @@ public class ChatController {
         }
         conversationService.setSessionGroup(sessionId,
                 groupName == null || groupName.isBlank() ? null : groupName.trim());
-        return R.success("会话分组已更新", SessionResponseDTO.of(sessionId, null));
+        return R.success("会话分组已更新", SessionResponse.of(sessionId, null));
     }
 
     /**
@@ -394,7 +394,7 @@ public class ChatController {
      * 流式执行斜杠命令（SSE：chunk 逐步过程 + done 收尾；/reset 的 done 带 newSessionId）
      */
     @PostMapping(value = "/command/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public reactor.core.publisher.Flux<String> executeCommand(@RequestBody ChatRequestDTO request) {
+    public reactor.core.publisher.Flux<String> executeCommand(@RequestBody ChatRequest request) {
         Long currentUserId = usageQuotaService.resolveCurrentUserId();
         String sessionId = request.getSessionId();
         if (!StringUtils.hasText(sessionId)) {
@@ -438,29 +438,29 @@ public class ChatController {
      * 获取会话消息列表
      */
     @GetMapping("/session/{sessionId}/messages")
-    public R<MessageListResponseDTO> getMessages(@PathVariable String sessionId) {
+    public R<MessageListResponse> getMessages(@PathVariable String sessionId) {
         conversationService.ensureAccessible(sessionId,
                 usageQuotaService.resolveCurrentUserId(), usageQuotaService.isCurrentUserAdmin());
         List<com.gewu.module.chat.entity.ChatMessage> messages =
                 conversationService.getSessionMessages(sessionId);
-        return R.success(MessageListResponseDTO.of(messages));
+        return R.success(MessageListResponse.of(messages));
     }
 
     /**
      * 获取 Token 使用统计
      */
     @GetMapping("/session/{sessionId}/stats")
-    public R<TokenStatsResponseDTO> getTokenStats(@PathVariable String sessionId) {
+    public R<TokenStatsResponse> getTokenStats(@PathVariable String sessionId) {
         com.gewu.module.chat.entity.TokenUsage stats = tokenUsageService.getSessionStats(sessionId);
-        TokenStatsResponseDTO response;
+        TokenStatsResponse response;
         if (stats != null) {
-            response = TokenStatsResponseDTO.of(sessionId,
+            response = TokenStatsResponse.of(sessionId,
                     stats.getInputTokens() != null ? stats.getInputTokens() : 0,
                     stats.getOutputTokens() != null ? stats.getOutputTokens() : 0,
                     stats.getTotalTokens() != null ? stats.getTotalTokens() : 0,
                     stats.getCost() != null ? stats.getCost() : BigDecimal.ZERO);
         } else {
-            response = TokenStatsResponseDTO.of(sessionId, 0, 0, 0, BigDecimal.ZERO);
+            response = TokenStatsResponse.of(sessionId, 0, 0, 0, BigDecimal.ZERO);
         }
         return R.success(response);
     }
@@ -471,7 +471,7 @@ public class ChatController {
      * 切换模式（文本/多模态，多模态预留）
      */
     @PostMapping("/mode")
-    public R<ModeStatusDTO> switchMode(@RequestBody SwitchModeRequestDTO request) {
+    public R<ModeStatusView> switchMode(@RequestBody SwitchModeRequest request) {
         boolean multimodal = request.getMultimodal() != null && request.getMultimodal();
         log.info("切换模式请求：multimodal={}", multimodal);
 
@@ -480,16 +480,16 @@ public class ChatController {
         }
 
         String currentModel = langChain4jConfig.getActiveModel();
-        return R.success(ModeStatusDTO.of("text", false, currentModel));
+        return R.success(ModeStatusView.of("text", false, currentModel));
     }
 
     /**
      * 获取当前模式状态
      */
     @GetMapping("/mode")
-    public R<ModeStatusDTO> getMode() {
+    public R<ModeStatusView> getMode() {
         String currentModel = langChain4jConfig.getActiveModel();
-        return R.success(ModeStatusDTO.of("text", false, currentModel));
+        return R.success(ModeStatusView.of("text", false, currentModel));
     }
 
     /**

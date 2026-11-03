@@ -8,7 +8,7 @@ import java.math.BigDecimal;
  * 模型使用统计 DTO（对齐 java-ai-native ModelUsageDTO）
  */
 @Data
-public class ModelUsageDTO {
+public class ModelUsageView {
 
     /**
      * 模型名称

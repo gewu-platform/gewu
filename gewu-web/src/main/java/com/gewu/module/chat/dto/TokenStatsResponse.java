@@ -14,7 +14,7 @@ import java.math.BigDecimal;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TokenStatsResponseDTO {
+public class TokenStatsResponse {
 
     private String sessionId;
 
@@ -26,9 +26,9 @@ public class TokenStatsResponseDTO {
 
     private BigDecimal cost;
 
-    public static TokenStatsResponseDTO of(String sessionId, int inputTokens, int outputTokens,
+    public static TokenStatsResponse of(String sessionId, int inputTokens, int outputTokens,
                                            int totalTokens, BigDecimal cost) {
-        return TokenStatsResponseDTO.builder()
+        return TokenStatsResponse.builder()
                 .sessionId(sessionId)
                 .inputTokens(inputTokens)
                 .outputTokens(outputTokens)

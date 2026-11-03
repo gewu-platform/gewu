@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserInfoDTO {
+public class UserInfoView {
 
     private Long id;
 

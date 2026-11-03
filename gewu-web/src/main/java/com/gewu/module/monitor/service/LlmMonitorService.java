@@ -4,9 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gewu.client.LangChain4jConfig;
 import com.gewu.module.monitor.dto.CallLogQuery;
-import com.gewu.module.monitor.dto.HourlyStatDTO;
-import com.gewu.module.monitor.dto.ModelUsageDTO;
-import com.gewu.module.monitor.dto.MonitorStatsDTO;
+import com.gewu.module.monitor.dto.HourlyStatView;
+import com.gewu.module.monitor.dto.ModelUsageView;
+import com.gewu.module.monitor.dto.MonitorStatsView;
 import com.gewu.module.monitor.entity.LlmCallLog;
 import com.gewu.module.monitor.mapper.LlmCallLogMapper;
 import lombok.RequiredArgsConstructor;
@@ -97,10 +97,10 @@ public class LlmMonitorService {
     /**
      * 获取监控统计（今日）
      */
-    public MonitorStatsDTO getStats() {
+    public MonitorStatsView getStats() {
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
 
-        MonitorStatsDTO stats = new MonitorStatsDTO();
+        MonitorStatsView stats = new MonitorStatsView();
         stats.setTodayCalls(llmCallLogMapper.countTodayCalls(startOfDay));
         stats.setTodayTokens(llmCallLogMapper.sumTodayTokens(startOfDay));
         stats.setTodayCost(llmCallLogMapper.sumTodayCost(startOfDay));
@@ -143,7 +143,7 @@ public class LlmMonitorService {
     /**
      * 模型使用排行（今日）
      */
-    public List<ModelUsageDTO> getModelRanking() {
+    public List<ModelUsageView> getModelRanking() {
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         return llmCallLogMapper.modelUsageToday(startOfDay);
     }
@@ -177,10 +177,10 @@ public class LlmMonitorService {
     /**
      * 填充缺失的小时（0-23），确保返回完整的 24 小时数据
      */
-    private List<HourlyStatDTO> fillMissingHours(List<HourlyStatDTO> existing) {
-        List<HourlyStatDTO> result = new ArrayList<>(24);
+    private List<HourlyStatView> fillMissingHours(List<HourlyStatView> existing) {
+        List<HourlyStatView> result = new ArrayList<>(24);
         for (int h = 0; h < 24; h++) {
-            HourlyStatDTO dto = new HourlyStatDTO();
+            HourlyStatView dto = new HourlyStatView();
             dto.setHour(h);
             dto.setCallCount(0L);
             dto.setAvgLatency(0.0);
@@ -188,9 +188,9 @@ public class LlmMonitorService {
         }
 
         if (existing != null) {
-            for (HourlyStatDTO s : existing) {
+            for (HourlyStatView s : existing) {
                 if (s.getHour() != null && s.getHour() >= 0 && s.getHour() < 24) {
-                    HourlyStatDTO target = result.get(s.getHour());
+                    HourlyStatView target = result.get(s.getHour());
                     target.setCallCount(s.getCallCount());
                     target.setAvgLatency(s.getAvgLatency());
                 }

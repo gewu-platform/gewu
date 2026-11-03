@@ -4,7 +4,7 @@ import com.gewu.common.ErrorCode;
 import com.gewu.common.BizException;
 import com.gewu.common.R;
 import com.gewu.module.user.entity.User;
-import com.gewu.module.user.dto.UserInfoDTO;
+import com.gewu.module.user.dto.UserInfoView;
 import com.gewu.module.user.service.UserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +32,7 @@ public class UserController {
      * 获取当前用户信息
      */
     @GetMapping("/profile")
-    public R<UserInfoDTO> getCurrentUser(Authentication authentication) {
+    public R<UserInfoView> getCurrentUser(Authentication authentication) {
         String username = resolveUsername(authentication);
         User user = userService.findByUsername(username);
         if (user == null) {
@@ -45,7 +45,7 @@ public class UserController {
      * 更新用户信息
      */
     @PutMapping("/profile")
-    public R<UserInfoDTO> updateUserProfile(
+    public R<UserInfoView> updateUserProfile(
             @RequestBody UserUpdateRequest request,
             Authentication authentication) {
 
@@ -109,8 +109,8 @@ public class UserController {
     /**
      * 构建用户信息 DTO
      */
-    private UserInfoDTO buildUserInfo(User user) {
-        return UserInfoDTO.builder()
+    private UserInfoView buildUserInfo(User user) {
+        return UserInfoView.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())

@@ -1,6 +1,6 @@
 package com.gewu.module.monitor.service;
 
-import com.gewu.module.monitor.dto.UsageReportDTO;
+import com.gewu.module.monitor.dto.UsageReportView;
 import com.gewu.module.monitor.mapper.LlmCallLogMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,7 +21,7 @@ public class UsageReportService {
      * @param view  day|user|agent
      * @param days  近 N 天（默认 7，上限 90）
      */
-    public List<UsageReportDTO> report(String view, Integer days) {
+    public List<UsageReportView> report(String view, Integer days) {
         int n = (days == null || days <= 0) ? 7 : Math.min(days, 90);
         LocalDate start = LocalDate.now().minusDays(n - 1);
         var startTs = start.atStartOfDay();

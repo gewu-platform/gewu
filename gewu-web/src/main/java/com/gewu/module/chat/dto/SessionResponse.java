@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SessionResponseDTO {
+public class SessionResponse {
 
     private String sessionId;
 
@@ -23,12 +23,12 @@ public class SessionResponseDTO {
     /** 会话是否为复用已有会话 */
     private Boolean reused;
 
-    public static SessionResponseDTO of(String sessionId, String mode) {
-        return SessionResponseDTO.builder().sessionId(sessionId).mode(mode).build();
+    public static SessionResponse of(String sessionId, String mode) {
+        return SessionResponse.builder().sessionId(sessionId).mode(mode).build();
     }
 
-    public static SessionResponseDTO of(String sessionId, String mode, String model, boolean reused) {
-        return SessionResponseDTO.builder()
+    public static SessionResponse of(String sessionId, String mode, String model, boolean reused) {
+        return SessionResponse.builder()
                 .sessionId(sessionId).mode(mode).model(model).reused(reused).build();
     }
 }

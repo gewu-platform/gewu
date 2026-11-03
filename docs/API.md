@@ -152,7 +152,7 @@
 | GET | `/models` | 模型使用排行（今日） |
 | GET | `/usage/report?view=&days=` | **T6 用量报表**：view=`day|user|agent`，days 默认 7 上限 90 |
 
-`usage/report` 返回 `UsageReportDTO[]`：`groupKey`（日期/userId/templateName）、`label`（用户名，可空）、`callCount`、`inputTokens`、`outputTokens`、`totalTokens`、`totalCost`。数据源 `llm_call_log` 单表聚合；`template_name` 语义：`agent:{agentId}` / `agent-smart` / 其他为普通 chat。
+`usage/report` 返回 `UsageReportView[]`：`groupKey`（日期/userId/templateName）、`label`（用户名，可空）、`callCount`、`inputTokens`、`outputTokens`、`totalTokens`、`totalCost`。数据源 `llm_call_log` 单表聚合；`template_name` 语义：`agent:{agentId}` / `agent-smart` / 其他为普通 chat。
 
 ### 配额（T6，env 配置）
 

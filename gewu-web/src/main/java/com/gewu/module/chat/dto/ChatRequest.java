@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatRequestDTO {
+public class ChatRequest {
 
     /**
      * 会话 ID（为空则自动创建新会话）

@@ -6,7 +6,7 @@ import com.gewu.common.R;
 import com.gewu.module.auth.dto.*;
 import com.gewu.module.user.entity.User;
 import com.gewu.module.auth.service.SysTokenService;
-import com.gewu.module.user.dto.UserInfoDTO;
+import com.gewu.module.user.dto.UserInfoView;
 import com.gewu.module.user.service.UserService;
 import com.gewu.infrastructure.security.AdminAccounts;
 import com.gewu.infrastructure.security.AuthThrottleService;
@@ -42,7 +42,7 @@ public class AuthController {
      * 用户登录
      */
     @PostMapping("/login")
-    public R<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO loginRequest,
+    public R<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest,
                                      HttpServletRequest httpRequest) {
         // 登录限流：按 用户名|IP 维度防暴力破解（对齐 native security.auth.throttle：5 次/300 秒）
         String throttleKey = loginRequest.getUsername() + "|" + getClientIp(httpRequest);
@@ -117,7 +117,7 @@ public class AuthController {
      * 用户注册
      */
     @PostMapping("/register")
-    public R<LoginResponseDTO> register(@Valid @RequestBody RegisterRequestDTO registerRequest,
+    public R<LoginResponse> register(@Valid @RequestBody RegisterRequest registerRequest,
                                         HttpServletRequest httpRequest) {
         // 注册用户
         User user = userService.register(
@@ -143,7 +143,7 @@ public class AuthController {
      * 刷新令牌
      */
     @PostMapping("/refresh")
-    public R<RefreshTokenResponseDTO> refreshToken(@Valid @RequestBody RefreshTokenRequestDTO refreshTokenRequest) {
+    public R<RefreshTokenResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest refreshTokenRequest) {
         String refreshToken = refreshTokenRequest.getRefreshToken();
         String username = jwtUtil.getUsernameFromToken(refreshToken);
         User user = userService.findByUsername(username);
@@ -156,7 +156,7 @@ public class AuthController {
             String newRefreshToken = jwtUtil.generateRefreshToken(username);
             sysTokenService.saveToken(user.getId(), newToken, newRefreshToken, null, null);
 
-            return R.success(RefreshTokenResponseDTO.builder()
+            return R.success(RefreshTokenResponse.builder()
                     .token(newToken)
                     .refreshToken(newRefreshToken)
                     .build());
@@ -172,7 +172,7 @@ public class AuthController {
      * 获取当前用户信息
      */
     @GetMapping("/me")
-    public R<UserInfoDTO> getCurrentUser(Authentication authentication) {
+    public R<UserInfoView> getCurrentUser(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new BizException(
                     ErrorCode.UNAUTHORIZED.getCode(),
@@ -209,8 +209,8 @@ public class AuthController {
     /**
      * 构建登录响应
      */
-    private LoginResponseDTO buildLoginResponse(String token, String refreshToken, User user) {
-        return LoginResponseDTO.builder()
+    private LoginResponse buildLoginResponse(String token, String refreshToken, User user) {
+        return LoginResponse.builder()
                 .token(token)
                 .refreshToken(refreshToken)
                 .user(buildUserInfo(user))
@@ -220,11 +220,11 @@ public class AuthController {
     /**
      * 构建用户信息 DTO
      */
-    private UserInfoDTO buildUserInfo(User user) {
+    private UserInfoView buildUserInfo(User user) {
         if (user == null) {
             return null;
         }
-        return UserInfoDTO.builder()
+        return UserInfoView.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())

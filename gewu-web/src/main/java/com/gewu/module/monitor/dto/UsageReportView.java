@@ -17,7 +17,7 @@ import java.math.BigDecimal;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UsageReportDTO {
+public class UsageReportView {
 
     /** 分组键（日期 / userId / templateName） */
     private String groupKey;

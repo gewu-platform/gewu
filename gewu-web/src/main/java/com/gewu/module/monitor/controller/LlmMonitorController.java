@@ -3,9 +3,9 @@ package com.gewu.module.monitor.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gewu.common.R;
 import com.gewu.module.monitor.dto.CallLogQuery;
-import com.gewu.module.monitor.dto.ModelUsageDTO;
-import com.gewu.module.monitor.dto.MonitorStatsDTO;
-import com.gewu.module.monitor.dto.UsageReportDTO;
+import com.gewu.module.monitor.dto.ModelUsageView;
+import com.gewu.module.monitor.dto.MonitorStatsView;
+import com.gewu.module.monitor.dto.UsageReportView;
 import com.gewu.module.monitor.entity.LlmCallLog;
 import com.gewu.module.monitor.service.LlmMonitorService;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class LlmMonitorController {
      * 获取监控统计（今日）
      */
     @GetMapping("/stats")
-    public R<MonitorStatsDTO> getStats() {
+    public R<MonitorStatsView> getStats() {
         return R.success(llmMonitorService.getStats());
     }
 
@@ -62,7 +62,7 @@ public class LlmMonitorController {
      * 模型使用排行（今日）
      */
     @GetMapping("/models")
-    public R<List<ModelUsageDTO>> getModelRanking() {
+    public R<List<ModelUsageView>> getModelRanking() {
         return R.success(llmMonitorService.getModelRanking());
     }
 
@@ -70,7 +70,7 @@ public class LlmMonitorController {
      * T6 用量报表：view=day|user|agent，days 近 N 天（默认 7，上限 90）
      */
     @GetMapping("/usage/report")
-    public R<java.util.List<UsageReportDTO>> usageReport(
+    public R<java.util.List<UsageReportView>> usageReport(
             @RequestParam(defaultValue = "day") String view,
             @RequestParam(required = false) Integer days) {
         return R.success(usageReportService.report(view, days));
