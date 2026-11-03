@@ -10,6 +10,7 @@ import com.gewu.module.knowledge.service.KnowledgeBaseService;
 import com.gewu.module.agent.dto.AgentStreamResponse;
 import com.gewu.module.agent.gateway.ToolApprovalGateway;
 import com.gewu.module.agent.registry.AgentRegistry;
+import com.gewu.module.agent.support.AgentTextUtils;
 import com.gewu.module.agent.tools.ToolRegistry;
 import com.gewu.module.monitor.service.LlmMonitorService;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
@@ -88,7 +89,6 @@ public class AgentService {
     private static final int MAX_ITERATIONS = 10;
 
     /** 单条工具结果最大字符（micro-compaction） */
-    private static final int MAX_OBSERVATION_CHARS = 2000;
 
     /**
      * T7：内置工具注册已迁移至 ToolRegistry.autoScanRegister()
@@ -153,7 +153,6 @@ public class AgentService {
         return executeLoop(targetModel, systemPrompt, userMessage,
                 toolRegistry.getAllSpecifications(), MAX_ITERATIONS, null, null, userId);
     }
-
 
     // ==================== V2.0.0 R1 多 Agent 主从编排 ====================
 
@@ -452,7 +451,7 @@ public class AgentService {
                     long latency = System.currentTimeMillis() - startTime;
 
                     AiMessage aiMessage = response.aiMessage();
-                    int inputTokens = estimateTokens(messages);
+                    int inputTokens = AgentTextUtils.estimateTokens(messages);
                     int outputTokens = aiMessage.text() != null ? aiMessage.text().length() / 4 : 0;
                     totalInputTokens.addAndGet(inputTokens);
                     totalOutputTokens.addAndGet(outputTokens);
@@ -461,8 +460,8 @@ public class AgentService {
                             sessionId, targetModel, finalAgentId != null ? "agent:" + finalAgentId : "agent-smart",
                             inputTokens, outputTokens, latency,
                             "success", null,
-                            truncate(userMessage, 200),
-                            truncate(aiMessage.text(), 500), userId);
+                            AgentTextUtils.truncate(userMessage, 200),
+                            AgentTextUtils.truncate(aiMessage.text(), 500), userId);
 
                     // 无工具请求 → 最终答案（正文已由 delta 流式推送，不再重复发 thought）
                     if (!aiMessage.hasToolExecutionRequests()) {
@@ -496,7 +495,7 @@ public class AgentService {
                         var approval = approvalGateway.check(
                                 toolCallId, req.name(),
                                 toolRegistry.getDescription(req.name()),
-                                parseArgs(req.arguments()), finalAgentId, null,
+                                AgentTextUtils.parseArgs(req.arguments()), finalAgentId, null,
                                 finalRequireApproval);
 
                         String result;
@@ -529,7 +528,7 @@ public class AgentService {
                             default -> result = String.format("[审批拒绝] 工具 '%s' 被用户拒绝执行。", req.name());
                         }
 
-                        result = microCompact(result);
+                        result = AgentTextUtils.microCompact(result);
                         sink.next(AgentStreamResponse.toolResult(req.name(), result, iterNum));
                         messages.add(ToolExecutionResultMessage.from(req, result));
                         // P8a：工具轨迹留档（与推送模型的内容一致）
@@ -537,8 +536,8 @@ public class AgentService {
                             Map<String, Object> trace = new HashMap<>();
                             trace.put("iteration", iterNum);
                             trace.put("tool", req.name());
-                            trace.put("input", parseArgs(req.arguments()));
-                            trace.put("result", truncate(result, 500));
+                            trace.put("input", AgentTextUtils.parseArgs(req.arguments()));
+                            trace.put("result", AgentTextUtils.truncate(result, 500));
                             toolTrace.add(trace);
                         }
                     }
@@ -706,7 +705,7 @@ public class AgentService {
             long latency = System.currentTimeMillis() - startTime;
 
             AiMessage aiMessage = response.aiMessage();
-            int inputTokens = estimateTokens(messages);
+            int inputTokens = AgentTextUtils.estimateTokens(messages);
             int outputTokens = aiMessage.text() != null ? aiMessage.text().length() / 4 : 0;
             totalInputTokens.addAndGet(inputTokens);
             totalOutputTokens.addAndGet(outputTokens);
@@ -715,7 +714,7 @@ public class AgentService {
                     inputTokens,
                     outputTokens,
                     latency, "success", null,
-                    truncate(userMessage, 200), truncate(aiMessage.text(), 500), userId);
+                    AgentTextUtils.truncate(userMessage, 200), AgentTextUtils.truncate(aiMessage.text(), 500), userId);
 
             if (!aiMessage.hasToolExecutionRequests()) {
                 String finalText = aiMessage.text() != null ? aiMessage.text() : "";
@@ -746,7 +745,7 @@ public class AgentService {
                         : "tc-" + toolCallCounter.incrementAndGet();
                 var approval = approvalGateway.check(toolCallId, req.name(),
                         toolRegistry.getDescription(req.name()),
-                        parseArgs(req.arguments()), agentId, sessionId, agentRequireApproval);
+                        AgentTextUtils.parseArgs(req.arguments()), agentId, sessionId, agentRequireApproval);
 
                 String result;
                 switch (approval.getStatus()) {
@@ -767,7 +766,7 @@ public class AgentService {
                     default -> result = String.format("[审批拒绝] 工具 '%s' 被用户拒绝执行。", req.name());
                 }
 
-                result = microCompact(result);
+                result = AgentTextUtils.microCompact(result);
                 AgentIteration it = new AgentIteration();
                 it.setIteration(i + 1);
                 it.setToolName(req.name());
@@ -779,8 +778,8 @@ public class AgentService {
                     Map<String, Object> trace = new HashMap<>();
                     trace.put("iteration", i + 1);
                     trace.put("tool", req.name());
-                    trace.put("input", parseArgs(req.arguments()));
-                    trace.put("result", truncate(result, 500));
+                    trace.put("input", AgentTextUtils.parseArgs(req.arguments()));
+                    trace.put("result", AgentTextUtils.truncate(result, 500));
                     toolTrace.add(trace);
                 }
 
@@ -837,61 +836,6 @@ public class AgentService {
             return modelId;
         }
         return langChain4jConfig.getActiveModel();
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> parseArgs(String argsJson) {
-        Map<String, Object> params = new HashMap<>();
-        if (argsJson != null && !argsJson.isBlank()) {
-            try {
-                params = new com.fasterxml.jackson.databind.ObjectMapper().readValue(argsJson, Map.class);
-            } catch (Exception ignored) {
-            }
-        }
-        return params;
-    }
-
-    private String toJsonArgs(Map<String, Object> params) {
-        if (params == null || params.isEmpty()) {
-            return "{}";
-        }
-        try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(params);
-        } catch (Exception e) {
-            return "{}";
-        }
-    }
-
-    private int estimateTokens(List<ChatMessage> messages) {
-        int chars = 0;
-        for (ChatMessage m : messages) {
-            if (m instanceof SystemMessage sm) {
-                chars += sm.text().length();
-            } else if (m instanceof UserMessage um) {
-                chars += um.singleText().length();
-            } else if (m instanceof AiMessage am && am.text() != null) {
-                chars += am.text().length();
-            } else if (m instanceof ToolExecutionResultMessage tm) {
-                chars += tm.text().length();
-            }
-        }
-        return chars / 4;
-    }
-
-    private String microCompact(String text) {
-        if (text == null || text.length() <= MAX_OBSERVATION_CHARS) {
-            return text;
-        }
-        int half = MAX_OBSERVATION_CHARS / 2;
-        return text.substring(0, half) + "\n\n[... 中间内容已截断 ...]\n\n"
-                + text.substring(text.length() - half);
-    }
-
-    private String truncate(String s, int maxLen) {
-        if (s == null) {
-            return null;
-        }
-        return s.length() > maxLen ? s.substring(0, maxLen) : s;
     }
 
     // ==================== 结果 DTO ====================
