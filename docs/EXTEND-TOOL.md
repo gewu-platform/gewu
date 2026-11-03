@@ -76,8 +76,133 @@ Agent 运行时按定义的 `toolIds` 取规格（`getSpecifications(ids)`）；
 | `search` | `SearchTool` | 搜索 |
 | `timezone` | `TimeZoneTool` | 时区换算 |
 
+> **沙箱适配现状（V2.4.0）**：`calculator` 与 `datetime` 已提供 `SandboxAdapter`，
+> 可被提级为 `DYNAMIC`/`EXTERNAL` 后在沙箱子进程内执行；其余内置工具未提供适配器，
+> 若被提级到需沙箱的级别会 fail-closed 拒绝（提示「暂无沙箱适配器」）。
+
 建议从 `DateTimeTool` 抄起——20 行就是一个可用工具。
 
+## 让工具支持沙箱（V2.4.0）
+
+工具默认走**直执行**。若工具含动态求值或来自外部，会被归为需沙箱的级别；
+此时需要提供 `SandboxAdapter`，否则调用会 fail-closed 拒绝。
+
+### 两步接入
+
+**第 1 步：实现 `SandboxAdapter`**（放 `module/agent/sandbox/`）
+
+```java
+@Component
+public class MyToolSandboxAdapter implements SandboxAdapter {
+
+    @Override
+    public String toolName() {
+        return "my_tool";              // 与 @Tool 的 name 一致
+    }
+
+    @Override
+    public ToolRisk risk() {
+        return ToolRisk.DYNAMIC;       // 该适配器承载的风险级（文档/自检用）
+    }
+
+    @Override
+    public Map<String, String> prepare(String argumentsJson) {
+        // 入参 → 沙箱任务；返回 null 表示不可执行（Runner 会 fail-closed）
+        // 返回 {"type":"error","code":"原因"} 可携带自定义错误文案
+        return Map.of("type", "js", "code", "1+1");
+    }
+
+    @Override
+    public boolean normalized() {
+        return false;                  // 是否需要数值归一（整数浮点尾/科学计数法）
+    }
+}
+```
+
+**第 2 步：无需改任何核心类**——`SandboxRunner` 构造时注入全部 `SandboxAdapter` Bean，
+按 `toolName()` 建注册表并查表派发。启动日志会打印注册情况：
+
+```
+[Sandbox] 适配器注册表初始化：2 个 → [calculator, datetime]
+```
+
+### 接口契约
+
+| 方法 | 必须 | 说明 |
+|---|---|---|
+| `toolName()` | 是 | 与 `@Tool(name=...)` 一致 |
+| `prepare(argumentsJson)` | 是 | 入参 → 沙箱任务；必须自行做入参校验（与直执行路径同源） |
+| `risk()` | 否 | 默认 `DYNAMIC` |
+| `normalized()` | 否 | 默认 false；计算类返回 true 可归一 `.0` 尾与科学计数法 |
+
+### 任务协议
+
+`prepare` 返回的 Map 必须含 `type` 与 `code`：
+
+| type | 含义 |
+|---|---|
+| `js` | 交给子进程 Nashorn 求值（受表达式白名单约束） |
+| `error` | 直接作为错误返回（`code` 即错误文案） |
+
+> 当前沙箱只支持 `js` 任务类型。若你的工具需要非 JS 语义，可在 `prepare` 内
+> 把计算前置到父进程完成，再把结果作为字面量注入 JS 表达式（参考 `DateTimeSandboxAdapter`：
+> 时间由父进程取好后作为字符串常量注入，避免子进程时区差异）。
+
+### 安全要求
+
+1. **入参必须校验**：沙箱路径与直执行路径必须同源防护，不能只在一侧校验
+2. **不要绕过白名单**：把用户输入直接拼进 `code` 前，必须过 `validateExpression`
+3. **不传密钥进沙箱**：子进程不该拿到凭据；确需外部调用时把结果在父进程取好后传入
+
+---
+
+## 工具风险分级（V2.1.0 / V2.4.0）
+
+每个工具都有风险级，决定「进来后怎么执行」。
+
+| 级别 | 何时使用 | 默认执行策略 |
+|---|---|---|
+| `SAFE` | 纯只读、纯计算、无副作用 | `direct` |
+| `DYNAMIC` | 含动态求值（脚本引擎、模板渲染） | `direct` |
+| `EXTERNAL` | 来自外部服务（MCP 桥接） | `direct`（V2.2.0 起，有界执行） |
+| `DANGEROUS` | 写文件、执行命令等高危能力 | `sandbox` + 无条件需审批 |
+
+### 内置工具如何标注
+
+`ToolRegistry.classifyBuiltin(toolName)` 决定内置工具风险级：
+
+```java
+private ToolRisk classifyBuiltin(String toolName) {
+    if (toolName == null) {
+        return ToolRisk.SAFE;
+    }
+    return "calculator".equals(toolName) ? ToolRisk.DYNAMIC : ToolRisk.SAFE;
+}
+```
+
+**新增工具若含动态求值，必须在此处补一行**，否则会被误标为 `SAFE`。
+
+### 运行时调整（无需改代码）
+
+```bash
+# 查看全部工具风险级与当前策略
+GET /api/settings/tool-risks
+
+# 提级某工具（ADMIN）
+POST /api/settings/tool-risks/my_tool
+{"risk": "DANGEROUS"}
+```
+
+**提级后的行为取决于策略**（`gewu.sandbox.policy.*`）：
+
+- 策略 `sandbox` + 沙箱可用 → 走沙箱子进程
+- 策略 `sandbox` + 沙箱不可用 → **默认拒绝**（fail-closed），除非配 `on-unavailable=allow-direct`
+- 策略 `direct` → 直执行
+- 策略 `disabled` → 禁止调用
+
+详见 [ARCHITECTURE.md](./ARCHITECTURE.md)「沙箱与风险分级」与 [DEPLOY.md](./DEPLOY.md) `GEWU_SANDBOX_*`。
+
+---
 ## 审批管控（P8b）
 
 工具默认可能触发审批流。两级策略：
@@ -99,3 +224,5 @@ Agent 运行时按定义的 `toolIds` 取规格（`getSpecifications(ids)`）；
 
 - API 全表：`docs/API.md`
 - 架构总览：`docs/ARCHITECTURE.md`
+- MCP 接入：`docs/MCP.md`
+- 插件仓库：`docs/PLUGIN.md`

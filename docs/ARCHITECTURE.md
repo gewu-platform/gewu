@@ -18,9 +18,12 @@ gewu/
 │           ├── chat/            会话/消息/多模态对话/SSE
 │           ├── agent/           编排核心（见下）
 │           ├── knowledge/       知识库（上传/解析/向量检索）
-│           ├── monitor/         监控 + 用量报表 + 配额（T6）
-│           ├── settings/        模型配置中心（T3）
-│           └── prompt/          提示词模板（版本化）
+│           ├── monitor/        监控 + 用量报表 + 配额（T6）+ 审计（V2.4.0）
+│           ├── settings/       模型配置中心（T3）+ 技能库（V2.0.0）
+│           ├── mcp/            MCP 客户端与桥接（V1.1.0 C3）
+│           ├── plugin/         插件仓库（V2.0.0）
+│           └── prompt/         提示词模板（版本化）
+│       ├── config/            横切组件：RateLimitService/Filter、TraceIdFilter、调度与 MyBatis 配置
 ├── database/gewu-init.sql   单文件真相源（幂等，可重跑 0 ERROR）
 └── docs/                    本文档套件
 ```
@@ -77,7 +80,7 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
   → SSE 十类事件流 → 前端渲染
 ```
 
-## 数据模型（PostgreSQL + pgvector，12 表）
+## 数据模型（PostgreSQL + pgvector，15 表）
 
 | 表 | 说明 |
 |---|---|
@@ -122,3 +125,103 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
 | 用户设置缓存 | `gewu:usetting:{userId}` | cache-aside，TTL 30min，写后删 |
 
 降级：Redis 不可达时全部操作自动回落 DB/内存原路径（60s 失败冷却），`gewu.redis.enabled=false` 可整体关闭。
+
+---
+
+## 沙箱与风险分级（V2.1.0 / V2.2.0 / V2.4.0）
+
+### 风险分级
+
+`ToolRisk` 四级，由 `ToolRegistry` 维护「工具名 → 风险级」注册表：
+
+| 级别 | 含义 | 默认可由 |
+|---|---|---|
+| `SAFE` | 只读/纯计算 | datetime、timezone、search、agent_dispatch |
+| `DYNAMIC` | 含动态求值 | calculator（走脚本引擎 eval） |
+| `EXTERNAL` | 外部来源 | MCP 桥接工具（`registerDirect` 默认） |
+| `DANGEROUS` | 显式高危 | 需人工提级，无条件需审批 |
+
+### 执行策略与 fail-closed
+
+`SandboxPolicy` 按风险级决定执行方式（`direct` / `sandbox` / `disabled`），
+管理接口：`GET /api/settings/tool-risks`（快照）/ `POST /api/settings/tool-risks/{toolName}`（提级）/
+`POST /api/settings/tool-risks/sandbox/probe`（沙箱诊断）。
+`ToolRegistry.execute` 前置拦截：策略要求沙箱但沙箱不可用时**默认拒绝**（fail-closed），
+不静默降级。开启 `allow-direct` 才放行，且打 ERROR 级「安全降级」强告警。
+
+### 进程级沙箱运行时
+
+| 组件 | 职责 |
+|---|---|
+| `SandboxAdapter` | 适配器接口（toolName / risk / prepare / normalized）——**新增工具零改 Runner** |
+| `CalculatorSandboxAdapter` / `DateTimeSandboxAdapter` | 具体适配器实现 |
+| `SandboxRunner` | spawn 子 JVM、超时强杀、排水线程、启动自检、classpath 自适应（dev / fat-jar） |
+| `SandboxWorker` | 子进程工作类：stdin 收任务 → 执行 → stdout 回结果；无 Spring/密钥/DB |
+
+**安全边界**：表达式白名单收敛（阻断 `Java.type`、标识符、多语句注入）、200 字符上限、
+`-Xmx` 内存上限、超时 `destroyForcibly` 强杀、结果长度上限、全程审计留档。
+
+**容器级沙箱**：已评估，**实施延后**（本机无可用容器运行时；进程级已覆盖当前威胁面）。
+决策记录见 `docs/decisions/0001-容器级沙箱评估.md`。
+
+---
+
+## 审计日志（V2.4.0）
+
+`audit_log` 表 + `AuditService`，记录管理面操作：谁、何时、对什么、做了什么、成功与否。
+
+| 覆盖域 | 动作 |
+|---|---|
+| Agent 定义 | `agent.create/update/delete/enable/disable` |
+| 模型与密钥 | `provider.create/update/delete/activate` |
+| 插件仓库 | `plugin.create/install/uninstall/delete` |
+| 工具风险 | `tool.risk.set` |
+| 会话与分组 | `session.clear/delete`、`group.dissolve` |
+
+**设计约束**：
+
+- `detail` 中键名含 key/secret/token/password 等字段值一律掩码 `***`（密钥不落审计表）
+- 长度上限 2000（超长截断）
+- **旁路失败只 WARN 不阻断业务**——审计不能回滚或阻断主流程
+- IP 优先取 `X-Forwarded-For` 首地址，回落 `remoteAddr`（与限流一致）
+
+---
+
+## 可观测（V2.2.0）
+
+| 组件 | 职责 |
+|---|---|
+| `spring-boot-starter-actuator` + `micrometer-registry-prometheus` | 健康与指标端点 |
+| `TraceIdFilter`（HIGHEST_PRECEDENCE） | 透传/生成 traceId → MDC → 日志 `%X{traceId}`；finally 清理防线程池串号；响应头回写 |
+
+**暴露面**：`/actuator/health` 公开（容器探针），其余 `/actuator/**` 需 ADMIN。
+
+**traceId 贯穿全链路**：HTTP 请求 → 业务服务 → 沙箱子进程（三段协议透传），
+沙箱内日志与父进程日志可用同一 traceId 关联。上游 traceId 会做清洗（仅留字母数字与连字符、限长 64）防日志注入。
+
+---
+
+## 限流（V2.2.0）
+
+| 组件 | 职责 |
+|---|---|
+| `RateLimitService` | 进程内令牌桶（按流逝时间补充、容量封顶、CHM + 桶内同步、5 分钟回收空闲桶） |
+| `RateLimitFilter`（@Order 0，Security 之后） | 仅拦 `/api/chat*`、`/api/agent/chat*`；已认证按 username、未认证回落 IP |
+
+**与配额分层**：限流管**速率**（先行拒绝，不占配额），配额管**每日总量**。
+
+**选型说明**：用进程内令牌桶而非 Redis——本项目 Redis 是可选加速层（不可达自动降级），
+限流若强依赖 Redis，会在 Redis 故障时丧失保护。代价是多实例部署时各实例独立计数，
+全局精确限流需改 Redis 实现（见 ROADMAP V2.5.0）。
+
+---
+
+## 数据库迁移（V2.3.0）
+
+**双轨契约**：
+
+- `database/gewu-init.sql`：**建库真相源**（Docker compose / 空库初始化），15 表全量幂等
+- `gewu-web/src/main/resources/db/migration/V{n}__*.sql`：**Flyway 增量**，只管 V2+ 变更
+
+`baseline-on-migrate=true` + `baseline-version=1`：已有库首次启动打基线，仅应用增量；
+增量 SQL 必须幂等（`IF NOT EXISTS`），与手工应用历史兼容。

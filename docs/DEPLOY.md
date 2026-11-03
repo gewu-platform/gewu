@@ -256,3 +256,121 @@ gunzip -c gewu-db-2026-10-23.sql.gz | docker exec -i gewu-db psql -U gewu gewu
 - 宿主机调试端口：`GEWU_REDIS_PORT`（默认 16379）。
 - 应用侧开关：`GEWU_REDIS_ENABLED`（默认 true；false 时全部走 DB/内存原路径）。
 - Redis 不可用不影响业务：令牌校验/限流/配额/设置缓存自动降级回 DB/内存。
+
+---
+
+## V2.x 新增配置项一览
+
+> 以下配置自 V2.0.0 起引入，均有默认值，不配置即可运行；生产环境按需覆盖。
+
+### 沙箱与工具风险（V2.1.0 / V2.2.0 / V2.4.0）
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `GEWU_SANDBOX_SAFE` | `direct` | SAFE 级工具执行方式（direct / sandbox / disabled） |
+| `GEWU_SANDBOX_DYNAMIC` | `direct` | DYNAMIC 级（含动态求值，如 calculator） |
+| `GEWU_SANDBOX_EXTERNAL` | `direct` | EXTERNAL 级（MCP 桥接工具）——V2.2.0 起默认 direct（有界直执行） |
+| `GEWU_SANDBOX_DANGEROUS` | `sandbox` | DANGEROUS 级，强制沙箱 |
+| `GEWU_SANDBOX_ON_UNAVAILABLE` | `reject` | 沙箱不可用时的降级策略：`reject`（fail-closed）/ `allow-direct`（直执行 + ERROR 强告警） |
+| `GEWU_SANDBOX_RUNNER_ENABLED` | `true` | 沙箱运行器总开关；false 时沙箱能力恒不可用 |
+| `GEWU_SANDBOX_TIMEOUT_MS` | `5000` | 单次沙箱调用超时（毫秒），超时强杀子进程 |
+| `GEWU_SANDBOX_XMX` | `256m` | 沙箱子 JVM 内存上限 |
+
+### MCP 调用边界（V2.2.0）
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `GEWU_MCP_TIMEOUT_MS` | `30000` | MCP 工具调用超时（同时作用于 transport 与 toolExecutionTimeout） |
+| `GEWU_MCP_MAX_RESULT_CHARS` | `100000` | 单次调用结果长度上限（超出截断并标注） |
+
+### 限流（V2.2.0）
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `GEWU_RATELIMIT_ENABLED` | `true` | 限流总开关 |
+| `GEWU_RATELIMIT_CHAT_CAPACITY` | `10` | 对话类接口桶容量（突发上限）；设为 0 即关闭该档 |
+| `GEWU_RATELIMIT_CHAT_REFILL` | `0.5` | 对话类每秒补充令牌数（0.5 ≈ 每分钟 30 次） |
+| `GEWU_RATELIMIT_DEFAULT_CAPACITY` | `60` | 其余受限接口桶容量 |
+| `GEWU_RATELIMIT_DEFAULT_REFILL` | `5` | 其余受限接口每秒补充 |
+| `GEWU_RATELIMIT_IDLE_EVICT_SECONDS` | `600` | 空闲桶回收阈值（秒） |
+
+> 限流为**进程内令牌桶**，多实例部署时各实例独立计数。全局精确限流需改用 Redis 实现（见 ROADMAP V2.5.0）。
+
+### 技能库（V2.0.0 / V2.0.1）
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `GEWU_SKILLS_DIR` | `C:\Users\<user>\.agents\skills` | 公共 Skill 库扫描目录（每个子目录一个 SKILL.md） |
+
+> 也可在「设置 → 公共 Skill」运行时切换目录（仅内存态，重启回退本变量/配置值）。
+
+### 数据库迁移 Flyway（V2.3.0）
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `GEWU_FLYWAY_ENABLED` | `true` | Flyway 增量迁移开关 |
+
+**契约（重要）**：
+
+- `database/gewu-init.sql` 仍是**建库真相源**（Docker compose 与空库初始化使用）
+- Flyway 只管 **V2+ 增量**：`baseline-on-migrate=true` + `baseline-version=1`，
+  已有库首次启动打基线后仅应用增量
+- 增量 SQL 必须**幂等**（`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`）
+  以便与手工应用历史安全兼容
+- 迁移文件位置：`gewu-web/src/main/resources/db/migration/V{n}__{描述}.sql`
+
+启动日志确认迁移状态：
+
+```
+Migrating schema "public" to version "3 - audit log"
+Successfully applied 1 migration to schema "public", now at version v3
+# 二次启动：Schema "public" is up to date. No migration necessary.
+```
+
+### 健康检查语义（V2.2.0）
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `GEWU_HEALTH_REDIS_ENABLED` | `false` | Redis 是否参与整体健康判定 |
+
+**为什么默认 false**：Redis 在本项目是**可选加速层**——不可达时业务自动降级走 DB/内存路径。
+若让 Redis 参与整体 health，会让「缓存不可用 = 服务 DOWN」，容器编排将误杀健康实例。
+如需监控 Redis，请用 Prometheus 指标（`/actuator/prometheus`）或单独探针。
+
+### 容器探针建议
+
+健康端点：`GET /actuator/health`（公开，返回 `{"status":"UP"}`；详情需 ADMIN）。
+
+```yaml
+# docker-compose 片段
+healthcheck:
+  test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/actuator/health"]
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 60s
+```
+
+> 旧版本使用 `/api/chat/health` 亦可，但 `/actuator/health` 语义更完整（含 db / diskSpace / ping）。
+
+### 可观测端点（V2.2.0）
+
+| 端点 | 认证 | 用途 |
+|---|---|---|
+| `/actuator/health` | 公开 | 容器探针 |
+| `/actuator/metrics` | ADMIN | Micrometer 指标（JSON） |
+| `/actuator/prometheus` | ADMIN | Prometheus 抓取点 |
+
+若接入 Prometheus，抓取配置示例：
+
+```yaml
+scrape_configs:
+  - job_name: gewu
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["gewu-server:8081"]
+    # 指标端点需 ADMIN，建议在网关层做鉴权或用只读服务账号
+```
+
+**traceId**：请求可带 `X-Trace-Id`，响应头回写；同日志格式已含 `%X{traceId}`，
+排查时用该值即可串起一次请求的全部日志（含沙箱子进程）。

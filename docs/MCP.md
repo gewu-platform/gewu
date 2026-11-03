@@ -72,3 +72,77 @@ if __name__ == "__main__":
 - 首版仅 `http_sse`；stdio 传输请走 mcp-proxy 网关。
 - 不支持需要鉴权头的 server（后续版本扩展 header 配置）。
 - 工具 schema 透传 MCP server 的 inputSchema，Gewu 不做二次校验。
+
+---
+
+## 调用边界配置（V2.2.0）
+
+MCP 工具执行是**纯 HTTP/SSE 直通**（本地不执行代码），因此采用「有界直执行」而非进程沙箱。
+两个边界都可配置：
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `GEWU_MCP_TIMEOUT_MS` | `30000` | 单次调用超时；同时作用于 `HttpMcpTransport.timeout` 与 `DefaultMcpClient.toolExecutionTimeout` |
+| `GEWU_MCP_MAX_RESULT_CHARS` | `100000` | 单次结果长度上限，超出截断并在结果末尾标注 |
+
+超时走的是 MCP 库**原生超时**（不占用公共线程池）；超时/失败都会记录日志：
+
+```
+[MCP] 调用留档：server=my-server, tool=read_file, elapsedMs=128ms, outLen=2048, truncated=false
+[MCP] 调用超时熔断：server=my-server, tool=slow_tool, timeoutMs=30000
+[MCP] 工具调用失败：server=my-server, tool=x, elapsedMs=52ms, reason=Connection refused
+```
+
+---
+
+## 工具白名单（V2.0.1）
+
+新增 MCP 服务器时可填 `toolAllow`，只桥接清单内的工具：
+
+```bash
+curl -X POST http://localhost:8081/api/settings/mcp-servers \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"name":"fs","transport":"http_sse","endpoint":"http://localhost:8001/sse",
+       "enabled":true,"toolAllow":"read_file,list_dir"}'
+```
+
+**两种写法都支持**：JSON 数组（`["read_file","list_dir"]`）或逗号分隔（`read_file,list_dir`）。
+留空/null = 不限（全量桥接）。
+
+白名单存于 `mcp_server.tool_allow` 列，**重启后依然生效**（启动恢复时按同一清单过滤，不会退化为全量）。
+
+---
+
+## 风险级与执行策略（V2.1.0 起）
+
+MCP 桥接工具默认风险级为 **`EXTERNAL`**。执行方式由策略决定：
+
+| 配置 | 行为 |
+|---|---|
+| `GEWU_SANDBOX_EXTERNAL=direct`（**默认**，V2.2.0 起） | 有界直执行：超时 + 结果上限 + 审计留档 |
+| `GEWU_SANDBOX_EXTERNAL=sandbox` | 需 `SandboxAdapter`；MCP 工具无适配器 → 逐次返回「暂无沙箱适配器」被拒 |
+| `GEWU_SANDBOX_EXTERNAL=disabled` | 禁止调用 MCP 工具 |
+
+> **升级提醒**：v2.1.0 曾把 `external` 默认设为 `sandbox` 而适配器只覆盖 calculator，
+> 导致插件工具全部不可用（v2.2.0 已修正为 `direct`）。若你从 v2.1.0 升级且自行改过策略，
+> 请确认 `GEWU_SANDBOX_EXTERNAL` 的取值。
+
+**为什么不给 MCP 工具上进程沙箱**：MCP 执行本质是 `client.executeTool()` 纯 HTTP/SSE 调用，
+本地不执行任何代码。JVM 隔离对**远端风险零收益**（远端服务做什么，本地沙箱管不了），
+却要每次调用多付 JVM 启动与 MCP 握手开销。真正有效的是调用侧边界（超时/结果上限/审计）。
+
+---
+
+## 审计与排查
+
+MCP 相关操作会进审计表（V2.4.0）：
+
+| 动作 | 触发 |
+|---|---|
+| `plugin.install` / `plugin.uninstall` | 经插件仓库安装/卸载 MCP 插件 |
+| `plugin.create` / `plugin.delete` | 插件条目增删 |
+
+查询：`GET /api/settings/audit-logs?action=plugin.install`（ADMIN）。
+
+排查调用问题时可结合 traceId：请求带 `X-Trace-Id`，MCP 调用日志与该请求其余日志共享同一值。
