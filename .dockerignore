@@ -8,5 +8,5 @@ uploads/
 .env
 .git/
 docs/
-database/migrations/
+# 注意：不要排除 database/migrations —— Dockerfile 需要 COPY 它进镜像（Flyway 运行时读取）
 node_modules/

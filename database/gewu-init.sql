@@ -497,3 +497,12 @@ COMMENT ON COLUMN audit_log.target_id IS '对象标识';
 COMMENT ON COLUMN audit_log.detail IS '变更摘要（前后关键值，不含密钥明文）';
 COMMENT ON COLUMN audit_log.ip IS '来源 IP（优先 X-Forwarded-For 首地址）';
 COMMENT ON COLUMN audit_log.success IS '是否成功 - 1=成功 0=失败';
+
+-- V2.3.0 B3（原 V2 迁移）：用户级设置表（对话压缩等个人偏好）
+CREATE TABLE IF NOT EXISTS sys_user_setting (
+    user_id      BIGINT       PRIMARY KEY,
+    settings     TEXT         DEFAULT NULL,
+    update_time  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+);
+-- settings JSON: {"autoCompact":true,"compactThreshold":8000,"compactKeepRecent":20}
+COMMENT ON TABLE sys_user_setting IS '用户级设置表 - 对话压缩等个人偏好（JSON 文本）';
