@@ -1,7 +1,7 @@
-package com.gewu.module.monitor.mapper;
+package com.gewu.module.audit.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.gewu.module.monitor.entity.AuditLog;
+import com.gewu.module.audit.entity.AuditLog;
 import org.apache.ibatis.annotations.Mapper;
 
 /**

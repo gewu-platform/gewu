@@ -1,4 +1,4 @@
-package com.gewu.module.monitor.entity;
+package com.gewu.module.audit.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;

@@ -1,9 +1,9 @@
-package com.gewu.module.monitor.controller;
+package com.gewu.module.audit.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.gewu.common.R;
-import com.gewu.module.monitor.entity.AuditLog;
-import com.gewu.module.monitor.mapper.AuditLogMapper;
+import com.gewu.module.audit.entity.AuditLog;
+import com.gewu.module.audit.mapper.AuditLogMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;

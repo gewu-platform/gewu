@@ -40,7 +40,7 @@ public class ToolRiskController {
     private final SandboxPolicy sandboxPolicy;
 
     /** V2.4.0 C2：审计日志（管理面操作留痕；落库失败不影响业务） */
-    private final com.gewu.module.monitor.service.AuditService auditService;
+    private final com.gewu.module.audit.service.AuditService auditService;
 
     /** 沙箱运行器（可选；B2 未装配时仅保留 B1 能力） */
     @Autowired(required = false)

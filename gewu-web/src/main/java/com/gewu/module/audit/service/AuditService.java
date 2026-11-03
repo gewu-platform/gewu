@@ -1,7 +1,7 @@
-package com.gewu.module.monitor.service;
+package com.gewu.module.audit.service;
 
-import com.gewu.module.monitor.entity.AuditLog;
-import com.gewu.module.monitor.mapper.AuditLogMapper;
+import com.gewu.module.audit.entity.AuditLog;
+import com.gewu.module.audit.mapper.AuditLogMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

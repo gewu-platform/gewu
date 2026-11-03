@@ -39,7 +39,7 @@ public class ChatController {
     private final TokenUsageService tokenUsageService;
 
     /** V2.4.0 C2：审计日志（管理面操作留痕；落库失败不影响业务） */
-    private final com.gewu.module.monitor.service.AuditService auditService;
+    private final com.gewu.module.audit.service.AuditService auditService;
     private final com.gewu.module.chat.service.ContextCompactService contextCompactService;
     private final com.gewu.module.user.service.UserSettingService userSettingService;
     private final com.gewu.module.chat.service.CommandService commandService;
