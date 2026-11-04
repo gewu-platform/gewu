@@ -37,8 +37,8 @@ jobs:
           format: 'HTML'
           args: >-
             --enableExperimental
-          env:
-            NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
       - name: Upload dependency-check report
         if: always()
