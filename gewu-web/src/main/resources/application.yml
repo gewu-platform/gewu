@@ -38,7 +38,7 @@ spring:
       database: 0
       timeout: 2s
 # ==================== LangChain4j 配置 ====================
-  # V2.3.0 B3.2：数据库增量迁移——init.sql 仍是建库真相源，Flyway 只管 V2+ 增量
+  # 数据库增量迁移——init.sql 仍是建库真相源，Flyway 只管 V2+ 增量
   # 已有库打基线（baseline-version=1）后应用增量；增量 SQL 必须幂等（IF NOT EXISTS）
   flyway:
     enabled: ${GEWU_FLYWAY_ENABLED:true}
@@ -64,7 +64,7 @@ langchain4j:
       apiKey: ${VOLC_API_KEY:}
       modelName: ep-20260525141015-h6skp
       temperature: 0.7
-      # V2.5.0 M1.3：能力标记（text=纯文本 / multimodal=支持图片输入）
+      # 能力标记（text=纯文本 / multimodal=支持图片输入）
       # 纯文本模型收到图片时由对话层拦下并给可读提示，而非让模型侧报晦涩错误
       capability: text
       description: "火山 Lite 端点 (ep-h6skp)"
@@ -105,7 +105,7 @@ mybatis-plus:
 
 # ==================== 服务器配置 ====================
 
-# V2.2.0 A2：可观测性端点（仅暴露 health/metrics/prometheus，其余关闭）
+# 可观测性端点（仅暴露 health/metrics/prometheus，其余关闭）
 management:
   endpoints:
     web:
@@ -119,7 +119,7 @@ management:
     tags:
       application: gewu
 
-  # V2.2.0 A2：health 语义——只反映「服务能否提供能力」
+  # health 语义——只反映「服务能否提供能力」
   # Redis 为可选加速层（gewu.redis.enabled 注释：不可达自动降级走 DB/内存路径），
   # 故默认不参与整体健康判定；如需监控 Redis 请走 prometheus 指标或单独探针
   health:
@@ -134,7 +134,7 @@ logging:
     root: INFO
     com.gewu: DEBUG
   pattern:
-    # V2.2.0 A2：日志格式含 traceId（空时显示 -），便于串联单次请求全部日志
+    # 日志格式含 traceId（空时显示 -），便于串联单次请求全部日志
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{traceId:--}] %-40.40logger{39} : %m%n"
   file:
     name: logs/gewu-web.log
@@ -152,7 +152,7 @@ security:
 
 # ==================== Gewu 自定义配置 ====================
 gewu:
-  # V2.2.0 A3：接口限流（进程内令牌桶；与 quota 分层——限流管速率，配额管每日总量）
+  # 接口限流（进程内令牌桶；与 quota 分层——限流管速率，配额管每日总量）
   # 注意：多实例部署时各实例独立计数，全局精确限流需改用 Redis 实现（见 ROADMAP V2.5.0）
   ratelimit:
     enabled: ${GEWU_RATELIMIT_ENABLED:true}
@@ -164,36 +164,39 @@ gewu:
       capacity: ${GEWU_RATELIMIT_DEFAULT_CAPACITY:60}
       refill-per-second: ${GEWU_RATELIMIT_DEFAULT_REFILL:5}
     idle-evict-seconds: ${GEWU_RATELIMIT_IDLE_EVICT_SECONDS:600}
-  # V2.1.0 B1/T1.2：工具执行策略（direct=直执行 / sandbox=沙箱 / disabled=禁用）
+  # 工具执行策略（direct=直执行 / sandbox=沙箱 / disabled=禁用）
   # 注意：策略=sandbox 且沙箱运行时不可用时按 fail-closed 拒绝执行（不静默直执行）
   sandbox:
     policy:
       safe: ${GEWU_SANDBOX_SAFE:direct}
       dynamic: ${GEWU_SANDBOX_DYNAMIC:direct}
-      # V2.2.0 A1：external 默认改 direct——MCP 工具为纯 HTTP/SSE 直通，本地无代码执行，
+      # external 默认改 direct——MCP 工具为纯 HTTP/SSE 直通，本地无代码执行，
       # JVM 隔离无安全收益却带来每次 500ms+ 开销；风险控制改由调用侧有界执行
       # （超时/结果上限/审计留痕）承担
       external: ${GEWU_SANDBOX_EXTERNAL:direct}
       dangerous: ${GEWU_SANDBOX_DANGEROUS:sandbox}
-      # V2.1.0 B4/T4.2：沙箱不可用时降级策略（reject=拒绝[默认] / allow-direct=直执行但强告警）
+      # 沙箱不可用时降级策略（reject=拒绝[默认] / allow-direct=直执行但强告警）
       on-unavailable: ${GEWU_SANDBOX_ON_UNAVAILABLE:reject}
-  # V2.2.0 A1：MCP 调用边界（纯 HTTP 直通的真实风险控制点）
+  # MCP 调用边界（纯 HTTP 直通的真实风险控制点）
   mcp:
     call:
       timeout-ms: ${GEWU_MCP_TIMEOUT_MS:30000}
       max-result-chars: ${GEWU_MCP_MAX_RESULT_CHARS:100000}
-  # V2.1.0 B2：沙箱运行器（独立子 JVM 执行；总开关 false 时 sandboxAvailable 恒 false，走 fail-closed）
+  # 沙箱运行器（独立子 JVM 执行；总开关 false 时 sandboxAvailable 恒 false，走 fail-closed）
   runner:
     enabled: ${GEWU_SANDBOX_RUNNER_ENABLED:true}
     timeout-ms: ${GEWU_SANDBOX_TIMEOUT_MS:5000}
     xmx: ${GEWU_SANDBOX_XMX:256m}
-  # V2.0.0 R2/T2.5：公共 Skill 库目录（环境变量 GEWU_SKILLS_DIR 可覆盖）
+  # 公共 Skill 库目录（环境变量 GEWU_SKILLS_DIR 可覆盖）
   skills:
     dir: ${GEWU_SKILLS_DIR:C:\Users\25333\.agents\skills}
   redis:
     # U4：Redis 总开关（false 全走原 DB/内存路径；true 时 Redis 不可达自动降级）
     enabled: ${GEWU_REDIS_ENABLED:true}
-  # V2.5.0 M1.1.1：文件存储（MinIO，S3 兼容自部署）
+  # 文件存储（MinIO，S3 兼容自部署）
+  # 说明：endpoint/bucket/凭据供应用直连 MinIO；GEWU_MINIO_PORT(容器9000→宿主)/
+  # GEWU_MINIO_CONSOLE_PORT(容器9001→宿主) 是 docker-compose 中 gewu-minio 服务的端口映射，
+  # 仅使用 compose 自带 MinIO 时生效；外接 MinIO 时无需配置，直接改 endpoint 即可
   # 统一约定：所有上传文件（知识库文档、对话附件）写入 MinIO，库表仅存 object key/访问链接
   storage:
     endpoint: ${GEWU_STORAGE_ENDPOINT:http://localhost:9000}
