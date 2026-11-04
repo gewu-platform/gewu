@@ -28,7 +28,8 @@ class ConversationServiceMultimodalTest {
                 mock(ChatMessageService.class),
                 mock(TokenUsageService.class),
                 mock(LlmMonitorService.class),
-                storage);
+                storage,
+                mock(com.gewu.module.knowledge.service.DocumentParseService.class));
     }
 
     @Test

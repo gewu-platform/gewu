@@ -118,7 +118,7 @@ public class ChatController {
 
         String response = conversationService.sendTextMessage(
                 sessionId, request.getMessage(), request.getSystemPrompt(), model, currentUserId,
-                request.getImageKeys());
+                request.getImageKeys(), request.getFileKeys());
 
         log.info("聊天响应成功：sessionId={}, responseLength={}, model={}",
                 sessionId, response.length(), model);
@@ -171,7 +171,8 @@ public class ChatController {
 
         try {
             conversationService.streamTextMessage(sessionIdFinal, request.getMessage(),
-                            request.getSystemPrompt(), model, currentUserId, request.getImageKeys())
+                            request.getSystemPrompt(), model, currentUserId,
+                            request.getImageKeys(), request.getFileKeys())
                     .doOnNext(chunk -> {
                         try {
                             if (chunk != null) {
@@ -240,10 +241,12 @@ public class ChatController {
     }
 
     /**
-     * V2.5.0 M1.1：上传对话图片附件（写 MinIO，返回预签名访问 URL）
+     * V2.5.0 M1.1 / M2：上传对话附件（图片或文档，写 MinIO）
      *
-     * <p>白名单 jpg/jpeg/png/webp/gif、单文件≤10MB、MIME 前缀 image/ 双保险。
-     * 返回的 URL 可直接回填到 /message 或 /message/stream 的 imageUrls 字段。</p>
+     * <p>按扩展名分流：
+     * 图片（jpg/jpeg/png/webp/gif）→ 返回预签名 URL，前端回填 imageKeys；
+     * 文档（pdf/docx/txt/md）→ 返回 { key, url, name }，前端回填 fileKeys。
+     * 单文件 ≤10MB。</p>
      */
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public R<Map<String, Object>> uploadAttachment(@RequestParam("file") MultipartFile file) {
@@ -251,8 +254,23 @@ public class ChatController {
         if (currentUserId == null) {
             throw new BizException(401, "请先登录");
         }
-        String url = attachmentService.uploadImage(file);
+
+        String name = file.getOriginalFilename();
+        String ext = ChatAttachmentService.extensionOf(name);
         Map<String, Object> result = new HashMap<>();
+
+        if (ChatAttachmentService.allowedDocExtensions().contains(ext)) {
+            Map<String, String> doc = attachmentService.uploadDocument(file);
+            result.put("type", "document");
+            result.put("key", doc.get("key"));
+            result.put("url", doc.get("url"));
+            result.put("name", doc.get("name"));
+            result.put("maxSizeBytes", ChatAttachmentService.maxSizeBytes());
+            return R.success("上传成功", result);
+        }
+
+        String url = attachmentService.uploadImage(file);
+        result.put("type", "image");
         result.put("url", url);
         result.put("maxSizeBytes", ChatAttachmentService.maxSizeBytes());
         return R.success("上传成功", result);

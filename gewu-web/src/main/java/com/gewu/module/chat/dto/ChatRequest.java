@@ -44,6 +44,15 @@ public class ChatRequest {
     private java.util.List<String> imageKeys;
 
     /**
+     * V2.5.0 M2：文档 object key 列表（对话内文件解析）。
+     *
+     * <p>与图片不同，文档不走图像通道——后端取出文件后复用
+     * DocumentParseService 抽取文本，作为上下文附加到本次用户消息之前。
+     * 文本不落库、不进向量库（不是知识库文档）。</p>
+     */
+    private java.util.List<String> fileKeys;
+
+    /**
      * 系统提示词（可选）
      */
     private String systemPrompt;

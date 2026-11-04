@@ -47,11 +47,13 @@
 | DELETE | `/session/{id}` | 删除会话 |
 | POST | `/session/{id}/clear` | 清空历史 |
 | POST | `/message` | 同步对话 |
-| POST | `/upload` | 上传对话图片附件（multipart: file；jpg/jpeg/png/webp/gif、≤10MB；返回预签名 URL） |
+| POST | `/upload` | 上传对话附件（multipart: file，≤10MB）。按扩展名分流：图片（jpg/jpeg/png/webp/gif）→ 返回预签名 URL；文档（pdf/docx/txt/md）→ 返回 { key, url, name } |
 | POST | `/message/stream` | 流式对话（SSE） |
-<!-- 多模态预留说明 -->
-> `POST /message` 与 `/message/stream` 接受 `useMultimodal` / `imageUrls` 字段，
-> 但当前**仅按文本模式处理**（图像输入为预留能力，尚未实现）。
+> **多模态与文档附件（V2.5.0 M1/M2）**：`/message` 与 `/message/stream` 接受三种附件字段——
+> `imageKeys`（图片 object key，后端读字节转 base64 入模；云端无法访问自部署 MinIO，故不能传 URL）、
+> `fileKeys`（文档 object key，后端抽取全文作为上下文注入，不进向量库、不产生知识库文档）、
+> `imageUrls`（仅前端展示用，不入模型）。
+> 发送图片要求当前模型 `capability=multimodal`，否则返回 400 并附可读提示。
 | POST | `/mode` | 切换会话模式 |
 | GET | `/health` | 健康探活（激活模型 / provider / key 是否已配置） |
 | GET | `/models` | 可用模型列表 |

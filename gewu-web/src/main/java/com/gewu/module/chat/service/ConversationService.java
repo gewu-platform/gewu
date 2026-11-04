@@ -5,6 +5,7 @@ import com.gewu.common.BizException;
 import com.gewu.common.ErrorCode;
 import com.gewu.infrastructure.storage.FileStorage;
 import com.gewu.module.chat.entity.ChatMessage;
+import com.gewu.module.knowledge.service.DocumentParseService;
 import com.gewu.module.chat.entity.ChatSession;
 import com.gewu.module.monitor.service.LlmMonitorService;
 import dev.langchain4j.data.message.AiMessage;
@@ -43,6 +44,8 @@ public class ConversationService {
     private final LlmMonitorService llmMonitorService;
     /** V2.5.0 M1.2：图片从 MinIO 读出后以 base64 传入模型（云端无法访问自部署地址） */
     private final FileStorage fileStorage;
+    /** V2.5.0 M2：文档文本抽取（复用知识库解析器，不新建重复实现） */
+    private final DocumentParseService documentParseService;
 
     /**
      * 创建新会话
@@ -224,6 +227,63 @@ public class ConversationService {
     }
 
     /**
+     * V2.5.0 M2：读取文档附件并抽取文本，拼接为上下文注入块。
+     *
+     * <p>与知识库 RAG 的区别：RAG 是「切片 + 向量检索 + 命中片段注入」，
+     * 本方法是「全文抽取 + 直接注入本次对话」——适合用户只想让模型读这一两份文件的场景，
+     * 不进向量库、不产生 KnowledgeDocument 记录、不污染后续检索。</p>
+     *
+     * <p>体积控制：总注入字符数有限额（见 maxInjectChars），超出截断并告知模型。</p>
+     *
+     * @param fileKeys 文档 object key 列表
+     * @return 注入块（无有效文档时返回 null）
+     */
+    String buildDocumentContext(java.util.List<String> fileKeys) {
+        if (fileKeys == null || fileKeys.isEmpty()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        int budget = ChatAttachmentService.maxInjectChars();
+        int included = 0;
+
+        for (String key : fileKeys) {
+            if (!StringUtils.hasText(key) || budget <= 0) {
+                continue;
+            }
+            try (var in = fileStorage.get(key)) {
+                String text = documentParseService.extractText(fileNameOf(key), in);
+                if (text == null || text.isBlank()) {
+                    log.warn("文档解析结果为空（已跳过）：key={}", key);
+                    continue;
+                }
+                String trimmed = text.length() > budget ? text.substring(0, budget) : text;
+                sb.append("\n--- 附件：").append(fileNameOf(key)).append(" ---\n")
+                  .append(trimmed).append('\n');
+                budget -= trimmed.length();
+                included++;
+                log.info("文档附件已注入：key={}, chars={}, 剩余预算={}", key, trimmed.length(), budget);
+            } catch (Exception e) {
+                // 单片失败不阻断对话（与图片附件、RAG 检索的降级口径一致）
+                log.warn("文档附件读取/解析失败（已跳过）：key={}, err={}", key, e.getMessage());
+            }
+        }
+
+        if (included == 0) {
+            return null;
+        }
+        return "以下是用户本次随对话上传的文档内容（仅供参考，不要虚构未提及的内容）：\n" + sb;
+    }
+
+    /** 从 object key 取文件名（末段）用于展示与扩展名判定 */
+    static String fileNameOf(String key) {
+        if (key == null) {
+            return "";
+        }
+        int i = key.lastIndexOf('/');
+        return i >= 0 ? key.substring(i + 1) : key;
+    }
+
+    /**
      * 图片 object key 列表 → JSON 数组字符串（存入 chat_message.image_urls 列）。
      *
      * <p>该列是历史遗留命名（原名 image_urls），V2.5.0 起存 object key 而非 URL；
@@ -259,6 +319,16 @@ public class ConversationService {
     @Transactional
     public String sendTextMessage(String sessionId, String message, String systemPrompt, String modelId,
                                   Long userId, java.util.List<String> imageKeys) {
+        return sendTextMessage(sessionId, message, systemPrompt, modelId, userId, imageKeys, null);
+    }
+
+    /**
+     * 发送消息（支持图片 + 文档附件，V2.5.0 M2）
+     */
+    @Transactional
+    public String sendTextMessage(String sessionId, String message, String systemPrompt, String modelId,
+                                  Long userId, java.util.List<String> imageKeys,
+                                  java.util.List<String> fileKeys) {
         if (!StringUtils.hasText(sessionId)) {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话 ID 不能为空");
         }
@@ -292,6 +362,12 @@ public class ConversationService {
             messages.add(0, SystemMessage.from(systemPrompt));
         }
 
+        // V2.5.0 M2：文档附件文本注入（在用户消息之前，作为参考上下文）
+        String docContext = buildDocumentContext(fileKeys);
+        if (docContext != null) {
+            messages.add(SystemMessage.from(docContext));
+        }
+
         // 添加用户消息（V2.5.0 M1.2：有图时构造图文混合消息）
         messages.add(buildUserMessage(message, imageKeys));
 
@@ -323,10 +399,19 @@ public class ConversationService {
     }
 
     /**
-     * 流式发送消息（支持图片附件，V2.5.0 M1.2）
+     * 流式发送消息（支持图片 + 文档附件，V2.5.0 M2）
      */
     public Flux<String> streamTextMessage(String sessionId, String message, String systemPrompt, String modelId,
                                           Long userId, java.util.List<String> imageKeys) {
+        return streamTextMessage(sessionId, message, systemPrompt, modelId, userId, imageKeys, null);
+    }
+
+    /**
+     * 流式发送消息（完整参数版）
+     */
+    public Flux<String> streamTextMessage(String sessionId, String message, String systemPrompt, String modelId,
+                                          Long userId, java.util.List<String> imageKeys,
+                                          java.util.List<String> fileKeys) {
         if (!StringUtils.hasText(sessionId)) {
             return Flux.error(new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话 ID 不能为空"));
         }
@@ -357,6 +442,12 @@ public class ConversationService {
 
         if (messages.isEmpty() && StringUtils.hasText(systemPrompt)) {
             messages.add(0, SystemMessage.from(systemPrompt));
+        }
+
+        // V2.5.0 M2：文档附件文本注入（在用户消息之前，作为参考上下文）
+        String docContext = buildDocumentContext(fileKeys);
+        if (docContext != null) {
+            messages.add(SystemMessage.from(docContext));
         }
 
         // V2.5.0 M1.2：有图时构造图文混合消息
