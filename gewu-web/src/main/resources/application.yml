@@ -190,3 +190,12 @@ gewu:
   redis:
     # U4：Redis 总开关（false 全走原 DB/内存路径；true 时 Redis 不可达自动降级）
     enabled: ${GEWU_REDIS_ENABLED:true}
+  # V2.5.0 M1.1.1：文件存储（MinIO，S3 兼容自部署）
+  # 统一约定：所有上传文件（知识库文档、对话附件）写入 MinIO，库表仅存 object key/访问链接
+  storage:
+    endpoint: ${GEWU_STORAGE_ENDPOINT:http://localhost:9000}
+    bucket: ${GEWU_STORAGE_BUCKET:gewu}
+    access-key: ${GEWU_STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${GEWU_STORAGE_SECRET_KEY:minioadmin}
+    # 预签名 URL 的对外端点（浏览器可达）；宿主机直跑留空即可，容器部署设为宿主可达地址
+    public-endpoint: ${GEWU_STORAGE_PUBLIC_ENDPOINT:}

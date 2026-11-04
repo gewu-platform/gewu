@@ -1,6 +1,7 @@
 package com.gewu.module.knowledge.service;
 
 import com.gewu.client.VolcMultiModalEmbeddingModel;
+import com.gewu.infrastructure.storage.FileStorage;
 import com.gewu.module.knowledge.entity.DocumentChunk;
 import com.gewu.module.knowledge.entity.KnowledgeDocument;
 import com.gewu.module.knowledge.mapper.DocumentChunkMapper;
@@ -11,8 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import com.gewu.module.setting.service.ModelProviderService;
@@ -34,6 +33,8 @@ public class KnowledgeIndexingService {
     private final ModelProviderService modelProviderService;
     private final DocumentChunkMapper chunkMapper;
     private final KnowledgeDocumentMapper documentMapper;
+    /** V2.5.0 M1.1.1：文档本体在 MinIO，解析时经存储抽象取流 */
+    private final FileStorage fileStorage;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -52,11 +53,14 @@ public class KnowledgeIndexingService {
         }
 
         String fileName = doc.getFileName();
-        Path filePath = Paths.get(doc.getFilePath());
 
         try {
             log.info("[async] parsing document: {}", fileName);
-            String text = parseService.extractText(filePath);
+            // V2.5.0 M1.1.1：filePath 字段存 object key，从 MinIO 取流解析
+            String text;
+            try (var in = fileStorage.get(doc.getFilePath())) {
+                text = parseService.extractText(fileName, in);
+            }
             doc.setContent(text);
 
             log.info("[async] chunking document: {}", fileName);

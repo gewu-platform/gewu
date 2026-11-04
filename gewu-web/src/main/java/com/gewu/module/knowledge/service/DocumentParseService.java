@@ -53,14 +53,23 @@ public class DocumentParseService {
     }
 
     public String extractText(Path filePath) throws IOException {
-        String ext = getFileExtension(filePath.toString()).toLowerCase();
+        return extractText(filePath.toString(), Files.newInputStream(filePath));
+    }
 
-        return switch (ext) {
-            case "pdf" -> extractFromPdf(Files.newInputStream(filePath));
-            case "docx" -> extractFromDocx(Files.newInputStream(filePath));
-            case "txt", "md" -> extractFromPlainText(Files.newInputStream(filePath));
-            default -> throw new IllegalArgumentException("Unsupported file type: " + ext);
-        };
+    /**
+     * 流式解析入口（V2.5.0 M1.1.1）：文件本体已迁移 MinIO，
+     * 调用方经 {@code FileStorage.get(objectKey)} 取流后传入；扩展名从文件名推导。
+     */
+    public String extractText(String fileName, InputStream in) throws IOException {
+        String ext = getFileExtension(fileName).toLowerCase();
+        try (in) {
+            return switch (ext) {
+                case "pdf" -> extractFromPdf(in);
+                case "docx" -> extractFromDocx(in);
+                case "txt", "md" -> extractFromPlainText(in);
+                default -> throw new IllegalArgumentException("Unsupported file type: " + ext);
+            };
+        }
     }
 
     public List<String> chunkText(String text, long fileSize) {

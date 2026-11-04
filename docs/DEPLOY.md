@@ -206,13 +206,17 @@ tar xzf gewu-deploy-pkg.tar.gz
                 ├─ 静态资源（dist 产物，/var/www/gewu）
                 └─ /api/* ──反代──▶ 127.0.0.1:8080 ──▶ gewu-server 容器(8081)
                                                       ├─ JDBC ──▶ gewu-db 容器(5432, PG16+pgvector)
-                                                      └─ /app/uploads 卷（知识库文件）
+                                                      ├─ S3 API ──▶ gewu-minio 容器(9000, 文件存储)
+                                                      └─ Redis ──▶ gewu-redis 容器(6379, 可选缓存)
 宿主机端口：nginx 80 / GEWU_SERVER_PORT(8080) / GEWU_DB_PORT(15432，可注释不暴露)
+           GEWU_MINIO_PORT(19000，浏览器预签名访问) / GEWU_MINIO_CONSOLE_PORT(19001，管理界面)
 ```
 
 - 前端仓库：`gewu-web`（Vue 3 + Vite；**不容器化**，静态产物 + nginx）
 - 后端仓库：本仓库（多模块 Maven：gewu-{common,client,security,web}）
 - 开发模式不容器化：后端 `mvn spring-boot:run -pl gewu-web`（8081）+ 前端 `npm run dev`（3001，代理已配）
+  - 本地开发需自行启动 MinIO（或 `docker run -p 9000:9000 minio/minio server /data`）；
+    文件统一存 MinIO，本地不再落盘（V2.5.0 M1.1.1）
 
 ---
 
@@ -306,6 +310,25 @@ gunzip -c gewu-db-2026-10-23.sql.gz | docker exec -i gewu-db psql -U gewu gewu
 | `GEWU_SKILLS_DIR` | `C:\Users\<user>\.agents\skills` | 公共 Skill 库扫描目录（每个子目录一个 SKILL.md） |
 
 > 也可在「设置 → 公共 Skill」运行时切换目录（仅内存态，重启回退本变量/配置值）。
+
+### 文件存储 MinIO（V2.5.0 M1.1.1）
+
+| 环境变量 | 默认 | 说明 |
+|---|---|---|
+| `GEWU_STORAGE_ENDPOINT` | `http://gewu-minio:9000` | 应用访问 MinIO 的端点（容器网络内） |
+| `GEWU_STORAGE_PUBLIC_ENDPOINT` | `http://localhost:19000` | 预签名 URL 的对外端点（浏览器可达）；宿主机直跑留空即与 endpoint 相同 |
+| `GEWU_STORAGE_BUCKET` | `gewu` | 桶名（不存在时启动自动创建） |
+| `GEWU_STORAGE_ACCESS_KEY` / `GEWU_STORAGE_SECRET_KEY` | `minioadmin`（yml 兜底） | 访问凭据；compose 经 `:?` 强制从 `.env` 注入，生产必须改强密钥 |
+| `GEWU_MINIO_PORT` / `GEWU_MINIO_CONSOLE_PORT` | `19000` / `19001` | 宿主机映射的 API / 控制台端口 |
+
+**统一约定**：所有上传文件（知识库文档、对话附件）一律写入 MinIO，
+**数据库仅存 object key / 访问链接，不存文件本体**。访问 URL 为 7 天有效期预签名，
+按需重新生成（库表存 object key，稳定不变）。
+
+**容器拓扑**：compose 新增 `gewu-minio` 服务（数据卷 `gewu-minio-data`），
+`gewu-server` 依赖其健康检查；原 `uploads/` 本地目录与 `gewu-uploads` 卷已废弃。
+本地直跑（非容器）时 yml 兜底 `minioadmin/minioadmin` + `localhost:9000`，
+需先手动启动 MinIO 或跳过上传功能。
 
 ### 数据库迁移 Flyway（V2.3.0）
 

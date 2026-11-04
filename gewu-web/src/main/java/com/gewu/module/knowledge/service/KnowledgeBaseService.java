@@ -1,6 +1,7 @@
 package com.gewu.module.knowledge.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.gewu.infrastructure.storage.FileStorage;
 import com.gewu.module.setting.service.ModelProviderService;
 import com.gewu.module.knowledge.dto.KnowledgeSearchResult;
 import com.gewu.module.knowledge.entity.DocumentChunk;
@@ -21,17 +22,15 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 /**
  * 知识库业务服务（对齐 java-ai-native KnowledgeBaseService）
  *
- * 上传：同步落库+落盘，事务提交后触发后台异步解析/embedding；
+ * 上传：同步落库 + 写入对象存储（MinIO），事务提交后触发后台异步解析/embedding；
  * 检索：查询向量化 → pgvector 余弦相似度 Top-K；
- * 删除：chunk 物理删除 + 文档软删 + 物理文件删除。
+ * 删除：chunk 物理删除 + 文档软删 + 存储对象删除。
+ * V2.5.0 M1.1.1：文件本体统一存 MinIO，库表 filePath 字段存 object key（原本地 uploads/ 已废弃）。
  */
 @Slf4j
 @Service
@@ -41,8 +40,9 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeDocumentMapper, K
     private final ModelProviderService modelProviderService;
     private final DocumentChunkMapper chunkMapper;
     private final KnowledgeIndexingService indexingService;
+    /** V2.5.0 M1.1.1：文件统一存 MinIO；库表仅存 object key */
+    private final FileStorage fileStorage;
 
-    private static final String UPLOAD_DIR = System.getProperty("user.dir") + "/uploads/knowledge/";
     private static final int TOP_K = 5;
 
     /**
@@ -67,14 +67,9 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeDocumentMapper, K
             throw new IllegalArgumentException("Unsupported file type: " + ext);
         }
 
-        Path uploadPath = Paths.get(UPLOAD_DIR);
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
-
-        String savedName = System.currentTimeMillis() + "_" + fileName;
-        Path savedPath = uploadPath.resolve(savedName);
-        file.transferTo(savedPath);
+        // V2.5.0 M1.1.1：文件统一写入 MinIO，库表仅存 object key（原 uploads/ 本地目录废弃）
+        String objectKey = "knowledge/" + System.currentTimeMillis() + "_" + fileName;
+        fileStorage.put(objectKey, file.getInputStream(), file.getSize(), file.getContentType());
 
         KnowledgeDocument doc = new KnowledgeDocument();
         doc.setFileName(fileName);
@@ -82,7 +77,7 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeDocumentMapper, K
         doc.setFileSize(file.getSize());
         doc.setStatus(1);
         doc.setCreatedBy(createdBy != null ? createdBy : "system");
-        doc.setFilePath(savedPath.toString());
+        doc.setFilePath(objectKey);
         doc.setCreateTime(java.time.LocalDateTime.now());
         doc.setUpdateTime(java.time.LocalDateTime.now());
 
@@ -149,16 +144,15 @@ public class KnowledgeBaseService extends ServiceImpl<KnowledgeDocumentMapper, K
         // 3. 软删除文档记录（@TableLogic 自动标记 deleted=1）
         boolean dbOk = this.removeById(documentId);
 
-        // 4. 物理删除上传的文件
+        // 4. 删除存储对象（filePath 字段存的是 object key）
         if (doc.getFilePath() != null) {
             try {
-                Path filePath = Paths.get(doc.getFilePath());
-                if (Files.exists(filePath)) {
-                    Files.delete(filePath);
-                    log.info("Deleted physical file: {}", filePath);
+                boolean removed = fileStorage.delete(doc.getFilePath());
+                if (removed) {
+                    log.info("Deleted storage object: {}", doc.getFilePath());
                 }
-            } catch (IOException e) {
-                log.warn("Failed to delete physical file for document {}: {}", documentId, e.getMessage());
+            } catch (Exception e) {
+                log.warn("Failed to delete storage object for document {}: {}", documentId, e.getMessage());
             }
         }
 

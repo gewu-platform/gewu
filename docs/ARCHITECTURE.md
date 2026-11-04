@@ -15,6 +15,7 @@ gewu/
 │       │   ├── security/       JWT 过滤器、UserDetailsService、SecurityConfig、登录限速
 │       │   ├── ratelimit/      令牌桶限流（RateLimitService + Filter）
 │       │   ├── tracing/        TraceIdFilter（链路 ID）
+│       │   ├── storage/        FileStorage 抽象 + MinIO 实现（V2.5.0 M1.1.1，统一文件存储）
 │       │   └── redis/          Redis 缓存服务（可选加速层）
 │       └── module/           业务域（依赖方向见下「模块依赖矩阵」）
 │           ├── auth/            登录注册（JWT + DB 令牌校验）→ user

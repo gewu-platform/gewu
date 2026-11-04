@@ -34,6 +34,8 @@
         <langchain4j-mcp.version>1.11.7-beta19</langchain4j-mcp.version>
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <hutool-jwt.version>5.8.28</hutool-jwt.version>
+        <!-- V2.5.0 M1.1.1：MinIO 文件存储 -->
+        <minio.version>8.5.12</minio.version>
     </properties>
 
     <dependencyManagement>
@@ -86,6 +88,12 @@
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-mcp</artifactId>
                 <version>${langchain4j-mcp.version}</version>
+            </dependency>
+            <!-- V2.5.0 M1.1.1：MinIO 文件存储（S3 兼容） -->
+            <dependency>
+                <groupId>io.minio</groupId>
+                <artifactId>minio</artifactId>
+                <version>${minio.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -5,6 +5,28 @@
 # ============================================
 
 services:
+  gewu-minio:
+    image: minio/minio:latest
+    container_name: gewu-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${GEWU_STORAGE_ACCESS_KEY:?请在 .env 设置 GEWU_STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${GEWU_STORAGE_SECRET_KEY:?请在 .env 设置 GEWU_STORAGE_SECRET_KEY}
+    volumes:
+      - gewu-minio-data:/data
+    ports:
+      # API 端口（宿主机映射 19000，避免与常见 9000 冲突）
+      - "${GEWU_MINIO_PORT:-19000}:9000"
+      # 控制台端口（浏览器管理界面）
+      - "${GEWU_MINIO_CONSOLE_PORT:-19001}:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
   gewu-db:
     image: pgvector/pgvector:pg16
     container_name: gewu-db
@@ -55,6 +77,8 @@ services:
         condition: service_healthy
       gewu-redis:
         condition: service_healthy
+      gewu-minio:
+        condition: service_healthy
     environment:
       TZ: Asia/Shanghai
       # 数据库（覆盖 yml 默认值，指向容器网络内 db）
@@ -64,13 +88,19 @@ services:
       # Redis（U4：指向容器网络内 gewu-redis）
       SPRING_DATA_REDIS_HOST: gewu-redis
       SPRING_DATA_REDIS_PORT: 6379
+      # 文件存储（V2.5.0 M1.1.1：统一 MinIO，库表仅存 object key）
+      GEWU_STORAGE_ENDPOINT: http://gewu-minio:9000
+      GEWU_STORAGE_PUBLIC_ENDPOINT: ${GEWU_STORAGE_PUBLIC_ENDPOINT:-http://localhost:19000}
+      GEWU_STORAGE_BUCKET: ${GEWU_STORAGE_BUCKET:-gewu}
+      GEWU_STORAGE_ACCESS_KEY: ${GEWU_STORAGE_ACCESS_KEY:?请在 .env 设置 GEWU_STORAGE_ACCESS_KEY}
+      GEWU_STORAGE_SECRET_KEY: ${GEWU_STORAGE_SECRET_KEY:?请在 .env 设置 GEWU_STORAGE_SECRET_KEY}
       # JWT（生产必须改随机值）
       JWT_SECRET: ${GEWU_JWT_SECRET:?请在 .env 设置 GEWU_JWT_SECRET}
       # 模型 Key：不经 compose 透传（空值会覆盖 yml 默认种子导致模型不可用）。
       # 当前阶段：容器内用 yml 默认 key（开发仓库私有）；T3 配置中心上线后改为网页配置，此处彻底移除
       JAVA_OPTS: ${GEWU_JAVA_OPTS:--Xms512m -Xmx1024m}
     volumes:
-      - gewu-uploads:/app/uploads
+      # V2.5.0 M1.1.1：文件本体已改存 MinIO，原 uploads 挂载废弃
       # V2.3.0：迁移文件只读挂载（免重建镜像即可更新增量 SQL；镜像内已内置一份兜底）
       - ./database/migrations:/app/database/migrations:ro
     ports:
@@ -84,4 +114,4 @@ services:
 
 volumes:
   gewu-db-data:
-  gewu-uploads:
+  gewu-minio-data:
