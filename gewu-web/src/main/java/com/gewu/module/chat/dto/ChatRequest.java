@@ -30,9 +30,18 @@ public class ChatRequest {
     private Boolean useMultimodal;
 
     /**
-     * 图片 URL 列表（多模态预留）
+     * 图片 URL 列表（前端展示用，来自 /upload 返回的预签名 URL）
      */
     private java.util.List<String> imageUrls;
+
+    /**
+     * V2.5.0 M1.2：图片 object key 列表（后端消费用）。
+     *
+     * <p>为何不直接用 imageUrls：预签名 URL 指向 self-host 的 MinIO，
+     * 云端视觉模型无法访问该地址，必须由后端读出字节以 base64 传入。
+     * 前端提交时把 /upload 返回的 key 回填到此字段。</p>
+     */
+    private java.util.List<String> imageKeys;
 
     /**
      * 系统提示词（可选）

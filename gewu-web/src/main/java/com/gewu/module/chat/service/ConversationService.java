@@ -3,10 +3,12 @@ package com.gewu.module.chat.service;
 import com.gewu.client.LangChain4jConfig;
 import com.gewu.common.BizException;
 import com.gewu.common.ErrorCode;
+import com.gewu.infrastructure.storage.FileStorage;
 import com.gewu.module.chat.entity.ChatMessage;
 import com.gewu.module.chat.entity.ChatSession;
 import com.gewu.module.monitor.service.LlmMonitorService;
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -21,6 +23,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,6 +41,8 @@ public class ConversationService {
     private final ChatMessageService messageService;
     private final TokenUsageService tokenUsageService;
     private final LlmMonitorService llmMonitorService;
+    /** V2.5.0 M1.2：图片从 MinIO 读出后以 base64 传入模型（云端无法访问自部署地址） */
+    private final FileStorage fileStorage;
 
     /**
      * 创建新会话
@@ -176,10 +181,84 @@ public class ConversationService {
     }
 
     /**
+     * V2.5.0 M1.2：构造用户消息——无图时纯文本，有图时图文混合。
+     *
+     * <p>为何必须 base64：预签名 URL 指向自部署 MinIO，云端视觉模型无法访问，
+     * 只能由后端读出字节后随请求传入。MIME 从对象键扩展名推导。</p>
+     *
+     * @param text      文本内容
+     * @param imageKeys object key 列表（可为 null/空）
+     */
+    UserMessage buildUserMessage(String text, java.util.List<String> imageKeys) {
+        if (imageKeys == null || imageKeys.isEmpty()) {
+            return UserMessage.from(text);
+        }
+        java.util.List<dev.langchain4j.data.message.Content> contents = new ArrayList<>();
+        contents.add(dev.langchain4j.data.message.TextContent.from(text));
+        int attached = 0;
+        for (String key : imageKeys) {
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            try (var in = fileStorage.get(key)) {
+                byte[] bytes = in.readAllBytes();
+                String mime = mimeTypeOf(key);
+                contents.add(ImageContent.from(Base64.getEncoder().encodeToString(bytes), mime));
+                attached++;
+            } catch (Exception e) {
+                // 单张图失败不阻断对话（与 RAG 检索失败的降级口径一致）
+                log.warn("图片附件读取失败（已跳过）：key={}, err={}", key, e.getMessage());
+            }
+        }
+        log.info("[Multimodal] 本次请求携带图片 {} / {} 张", attached, imageKeys.size());
+        return UserMessage.from(contents);
+    }
+
+    /** 由 object key 推导 MIME（仅覆盖白名单内的图片类型） */
+    static String mimeTypeOf(String key) {
+        String lower = key.toLowerCase(java.util.Locale.ROOT);
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".webp")) return "image/webp";
+        if (lower.endsWith(".gif")) return "image/gif";
+        return "image/jpeg";
+    }
+
+    /**
+     * 图片 object key 列表 → JSON 数组字符串（存入 chat_message.image_urls 列）。
+     *
+     * <p>该列是历史遗留命名（原名 image_urls），V2.5.0 起存 object key 而非 URL；
+     * 前端展示时按需换取预签名链接。手写序列化避免为一个字段引入 Jackson 依赖。</p>
+     */
+    static String toJsonArray(java.util.List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < keys.size(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append('"')
+              .append(keys.get(i).replace("\\", "\\\\").replace("\"", "\\\""))
+              .append('"');
+        }
+        return sb.append(']').toString();
+    }
+
+    /**
      * 发送文本消息并获取回复（支持指定模型）
      */
     @Transactional
     public String sendTextMessage(String sessionId, String message, String systemPrompt, String modelId, Long userId) {
+        return sendTextMessage(sessionId, message, systemPrompt, modelId, userId, null);
+    }
+
+    /**
+     * 发送消息（支持图片附件，V2.5.0 M1.2）
+     */
+    @Transactional
+    public String sendTextMessage(String sessionId, String message, String systemPrompt, String modelId,
+                                  Long userId, java.util.List<String> imageKeys) {
         if (!StringUtils.hasText(sessionId)) {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话 ID 不能为空");
         }
@@ -213,8 +292,8 @@ public class ConversationService {
             messages.add(0, SystemMessage.from(systemPrompt));
         }
 
-        // 添加用户消息
-        messages.add(UserMessage.from(message));
+        // 添加用户消息（V2.5.0 M1.2：有图时构造图文混合消息）
+        messages.add(buildUserMessage(message, imageKeys));
 
         // 调用 AI（LangChain4j ChatModel）
         String replyText;
@@ -240,6 +319,14 @@ public class ConversationService {
      * 流式发送文本消息（SSE 流式输出）
      */
     public Flux<String> streamTextMessage(String sessionId, String message, String systemPrompt, String modelId, Long userId) {
+        return streamTextMessage(sessionId, message, systemPrompt, modelId, userId, null);
+    }
+
+    /**
+     * 流式发送消息（支持图片附件，V2.5.0 M1.2）
+     */
+    public Flux<String> streamTextMessage(String sessionId, String message, String systemPrompt, String modelId,
+                                          Long userId, java.util.List<String> imageKeys) {
         if (!StringUtils.hasText(sessionId)) {
             return Flux.error(new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话 ID 不能为空"));
         }
@@ -272,11 +359,13 @@ public class ConversationService {
             messages.add(0, SystemMessage.from(systemPrompt));
         }
 
-        messages.add(UserMessage.from(message));
+        // V2.5.0 M1.2：有图时构造图文混合消息
+        messages.add(buildUserMessage(message, imageKeys));
 
-        // 异步保存用户消息
+        // 异步保存用户消息（图片 object key 一并落库，供历史重载显示）
         messageService.saveMessage(
-                sessionId, "user", message, "text", null,
+                sessionId, "user", message, imageKeys != null && !imageKeys.isEmpty() ? "multimodal" : "text",
+                imageKeys != null && !imageKeys.isEmpty() ? toJsonArray(imageKeys) : null,
                 modelId, message.length() / 4, 0, null,
                 UUID.randomUUID().toString(), null
         );

@@ -94,7 +94,8 @@ public class ChatController {
         }
 
         String response = conversationService.sendTextMessage(
-                sessionId, request.getMessage(), request.getSystemPrompt(), model, currentUserId);
+                sessionId, request.getMessage(), request.getSystemPrompt(), model, currentUserId,
+                request.getImageKeys());
 
         log.info("聊天响应成功：sessionId={}, responseLength={}, model={}",
                 sessionId, response.length(), model);
@@ -144,7 +145,7 @@ public class ChatController {
 
         try {
             conversationService.streamTextMessage(sessionIdFinal, request.getMessage(),
-                            request.getSystemPrompt(), model, currentUserId)
+                            request.getSystemPrompt(), model, currentUserId, request.getImageKeys())
                     .doOnNext(chunk -> {
                         try {
                             if (chunk != null) {
