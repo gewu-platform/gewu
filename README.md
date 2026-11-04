@@ -16,7 +16,7 @@
 
 > 后端 ~15.7k 行 Java（156 文件主源码 + 8 个测试类，Maven 四模块）| [前端](https://github.com/gewu-platform/gewu-web) ~11.1k 行 Vue | PG 16 表 | 93 REST 端点
 
-[English](#english--快速开始英文) · [API 参考](docs/API.md) · [工具扩展](docs/EXTEND-TOOL.md) · [架构总览](docs/ARCHITECTURE.md) · [部署指南](docs/DEPLOY.md)
+[English](README.en.md) · [API 参考](docs/API.md) · [工具扩展](docs/EXTEND-TOOL.md) · [架构总览](docs/ARCHITECTURE.md) · [部署指南](docs/DEPLOY.md)
 
 ---
 
@@ -154,18 +154,6 @@ cd ../gewu-web && npm i && npm run dev   # 前端仓库：github.com/gewu-platfo
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Docker / nginx 部署 + 离线包 + FAQ |
 | [docker/README.md](docker/README.md) | 构建入口索引（两种模式/根目录文件约束） |
 | [docs/plan/](docs/plan/ROADMAP.md) | 版本规划（ROADMAP + 各版本 PLAN） |
-
-## English · Quick Start (brief)
-
-```bash
-psql -U postgres -d gewu -f database/gewu-init.sql
-export VOLC_API_KEY=sk-xxx
-export GEWU_ENCRYPT_KEY=$(openssl rand -base64 48)
-mvn spring-boot:run -pl gewu-web
-cd ../gewu-web && npm i && npm run dev   # http://localhost:3001
-```
-
-Gewu is an enterprise-grade AI Agent platform built on LangChain4j 1.11.7 + Spring Boot 3.2 + PostgreSQL/pgvector: streaming chat (SSE), RAG knowledge base (md/txt/pdf/docx → pgvector), versioned prompt management, LLM monitoring with usage reports & token quotas, agent orchestration with human-in-the-loop tool approval, and a dynamic model configuration center (AES-256-GCM encrypted keys). Full docs are in `docs/` (Chinese; API tables are language-neutral).
 
 ## License
 
