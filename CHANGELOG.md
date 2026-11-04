@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.0] - 2026-11-04
+
+### Added
+- **M1 图片对话（多模态）**: `/api/chat/upload` 图片上传端点（jpg/jpeg/png/webp/gif，≤10MB，扩展名白名单 + MIME 前缀双保险）；多模态消息链路消费（`buildUserMessage` 构造 TextContent+ImageContent 混合消息，图片经 FileStorage 读取后以 base64 传入模型——云端视觉模型无法访问自部署 MinIO，故不能传 URL）；图片能力门禁（纯文本模型发图返回 400 可读提示，Provider 新增 `capability` 字段，安全默认 text）；前端 Ctrl+V 粘贴直入输入框 + 附件按钮 + 待发送预览条 + 气泡缩略图渲染
+- **M1.1.1 文件存储统一 MinIO**: `FileStorage` 抽象 + MinIO 实现（S3 兼容，双 client 设计——内网操作端点与对外预签名端点分离，适配容器部署拓扑）；知识库三消费点（上传/删除/解析读流）迁离本地磁盘，库表仅存 object key；compose 新增 `gewu-minio` 服务与数据卷；存量 `uploads/` 不自动迁移（删除安全降级，重解析需手工 `mc mirror`）
+- **M2 对话内文件解析**: pdf/docx/txt/md 上传 → 复用 DocumentParseService 全文抽取 → 注入本次对话上下文（预算 20000 字符截断；**不进向量库、不产生 KnowledgeDocument**，与 RAG 明确分工：临时阅读 vs 长期沉淀）；单文档失败跳过不阻断对话
+- **E1 评测确定性约束**（2c45ab4）: 评测执行器强制 `temperature=0` + 固定 `seed=42`（EVAL_TEMPERATURE / EVAL_SEED 可覆盖）；报告输出可复现元信息；基线文件化（EVAL_BASELINE_OUT 写出 / BASELINE_FILE 对比，回退即失败——已用篡改基线反向验证）
+- **E2 数据流与最小化声明**: README「数据流向与隐私」章节（存本地 / 凭据不出机 / 无遥测）+「如何自行核对」三条独立验证路径；经全仓库扫描核实无遥测/崩溃上报/版本检查代码
+
+### Changed
+- `/upload` 按扩展名分流：图片返回预签名 URL；文档返回 `{ key, url, name }`
+- ChatRequest 新增 `imageKeys` / `fileKeys`（object key，后端消费）；`imageUrls` 保留为前端展示用
+- sendTextMessage / streamTextMessage 新增含附件参数的重载（旧签名保留委托，向后兼容）
+- 移除「多模态模式预留中，本次按文本模式处理」日志（M1 上线后已不成立）
+
+### Docs
+- DEPLOY.md 新增「文件存储 MinIO」小节；架构图更新（minio 容器 + Redis 链路）
+- API.md 重写多模态与文档附件说明（三字段语义 + 能力门禁要求）
+- ARCHITECTURE.md 补 `infrastructure/storage` 分层；新建 AGENTS.md（项目级代理约定）
+- ROADMAP/V2.5.0-PLAN 全程同步；文档用语按规范统一中性表述
+
 ## [v2.4.0] - 2026-11-02
 
 ### Added
