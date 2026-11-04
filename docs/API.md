@@ -188,6 +188,10 @@ gewu:
 | POST | `/providers/{id}/activate` | 激活（chat 即时生效；embedding 见重建方案） |
 | POST | `/providers/{id}/test` | 连通性测试（chat 微补全 / embedding 测维度） |
 
+**模型能力标记（V2.5.0 M1.3）**：Provider 配置含 `capability` 字段（`text` 默认 / `multimodal`）。
+对话侧据此做图片能力门禁——纯文本模型收到图片时返回 400 并附可读提示（含模型名与处置建议），
+而非把图片发到模型侧换来晦涩报错。**未显式配置时按 `text` 处理**（安全默认）。
+
 密钥安全：AES-256-GCM（`v1:iv:ct`），密钥 env `GEWU_ENCRYPT_KEY`（`openssl rand -base64 48` 生成；未配置回退开发密钥，**生产必须配置**）。首次启动自动把 yml 内置模型种子导入 `llm_provider` 表。
 
 ---

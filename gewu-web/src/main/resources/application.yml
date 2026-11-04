@@ -64,6 +64,9 @@ langchain4j:
       apiKey: ${VOLC_API_KEY:}
       modelName: ep-20260525141015-h6skp
       temperature: 0.7
+      # V2.5.0 M1.3：能力标记（text=纯文本 / multimodal=支持图片输入）
+      # 纯文本模型收到图片时由对话层拦下并给可读提示，而非让模型侧报晦涩错误
+      capability: text
       description: "火山 Lite 端点 (ep-h6skp)"
 
     # 保留兼容配置（供 Day1-7 学习示例使用）

@@ -80,9 +80,21 @@ public class LangChain4jConfig {
         private Integer maxTokens = 1024;
 
         /**
+         * 模型能力标记（V2.5.0 M1.3）：text=纯文本 / multimodal=支持图片输入。
+         * 用于对话侧的图片能力门禁——纯文本模型收到图片时给可读提示，
+         * 而非把图发过去让模型侧报晦涩错误。
+         */
+        private String capability = "text";
+
+        /**
          * 模型描述（用于前端展示）
          */
         private String description;
+
+        /** 是否支持图片输入 */
+        public boolean supportsImage() {
+            return "multimodal".equalsIgnoreCase(capability);
+        }
     }
 
     /**

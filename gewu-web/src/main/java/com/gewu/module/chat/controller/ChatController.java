@@ -52,6 +52,27 @@ public class ChatController {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
+     * V2.5.0 M1.3：图片能力门禁。
+     *
+     * <p>纯文本模型收到图片时在此拦下并给可读提示——否则图片会被发到模型侧，
+     * 换来一句晦涩的 API 报错或静默忽略，用户无法判断是“没传上去”还是“模型不看图”。</p>
+     *
+     * @param model      本次使用的模型 ID
+     * @param imageKeys  图片 object key 列表
+     */
+    void assertImageCapability(String model, List<String> imageKeys) {
+        if (imageKeys == null || imageKeys.isEmpty()) {
+            return;
+        }
+        LangChain4jConfig.ModelConfig config = langChain4jConfig.getModels().get(model);
+        if (config != null && config.supportsImage()) {
+            return;
+        }
+        throw new BizException(ErrorCode.BAD_REQUEST.getCode(),
+                "当前模型「" + model + "」不支持图片输入，请切换到视觉模型（或在模型配置中将其 capability 标为 multimodal）");
+    }
+
+    /**
      * 发送聊天消息
      */
     @PostMapping("/message")
@@ -84,13 +105,15 @@ public class ChatController {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "未知模型 ID: " + model);
         }
 
+        // V2.5.0 M1.3：图片能力门禁（纯文本模型发图给可读提示）
+        assertImageCapability(model, request.getImageKeys());
+
         // T3.4 自动压缩：发送前估算超阈值则先压缩（失败不阻断对话）
         autoCompactIfNeeded(sessionId, currentUserId);
 
-        // 多模态预留：P3 先落 API 契约，图像输入后置（对齐计划决策 12）
-        if (request.getUseMultimodal() != null && request.getUseMultimodal()) {
-            log.info("多模态模式预留中，本次按文本模式处理（imageUrls 已接收 {} 条）",
-                    request.getImageUrls() != null ? request.getImageUrls().size() : 0);
+        // 多模态：图片已由 M1.2 链路消费（imageKeys → base64 → 模型）
+        if (request.getImageKeys() != null && !request.getImageKeys().isEmpty()) {
+            log.info("多模态请求：携带图片 {} 张（model={}）", request.getImageKeys().size(), model);
         }
 
         String response = conversationService.sendTextMessage(
@@ -132,6 +155,9 @@ public class ChatController {
         if (!langChain4jConfig.getModels().containsKey(model)) {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "未知模型 ID: " + model);
         }
+
+        // V2.5.0 M1.3：图片能力门禁（纯文本模型发图给可读提示）
+        assertImageCapability(model, request.getImageKeys());
 
         // T3.4 自动压缩：发送前估算超阈值则先压缩（失败不阻断对话）
         autoCompactIfNeeded(sessionIdFinal, currentUserId);
