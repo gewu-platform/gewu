@@ -32,8 +32,11 @@ mvn package -DskipTests
 cp gewu-web/target/gewu-web-1.0-SNAPSHOT.jar docker/jar/gewu-server.jar
 # Windows: copy /Y gewu-web\target\gewu-web-1.0-SNAPSHOT.jar docker\jar\gewu-server.jar
 
-# ③ 用 .env 切换 Dockerfile 后构建
-GEWU_SERVER_DOCKERFILE=Dockerfile.jar docker compose build gewu-server
+# ③ 告诉 compose 用 Dockerfile.jar 构建
+#    推荐：取消 .env 中 GEWU_SERVER_DOCKERFILE 的注释（跨平台、永久生效）
+#    或 PowerShell 临时设置：$env:GEWU_SERVER_DOCKERFILE = "Dockerfile.jar"
+#    注意：VAR=value cmd 是 bash 语法，PowerShell 不支持内联写法
+docker compose build gewu-server
 ```
 
 也可脱离 compose 直接构建：

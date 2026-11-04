@@ -84,12 +84,26 @@ docker compose build gewu-server   # 或直接 up -d 触发；依赖层已缓存
 
 ```bash
 mvn package -DskipTests                                                # ① 本机或 CI 打 jar
-cp gewu-web/target/gewu-web-1.0-SNAPSHOT.jar docker/jar/gewu-server.jar  # ② 放到约定位置
-GEWU_SERVER_DOCKERFILE=Dockerfile.jar docker compose build gewu-server   # ③ 用预打包 jar 构建镜像
+cp gewu-web/target/gewu-web-1.0-SNAPSHOT.jar docker/jar/gewu-server.jar  # ② 放到约定位置（Windows 用 copy /Y）
 ```
 
-> 模式 B 也可脱离 compose 直接构建：`docker build -f Dockerfile.jar -t gewu/gewu-server:latest .`
-> 两种模式运行层完全一致（分层缓存 + healthcheck + 时区）；Windows 下 ② 用 `copy /Y`。jar 不进 git。
+③ 告诉 compose 用 `Dockerfile.jar` 构建——**推荐改 `.env`**（跨平台、一次设置永久生效）：
+取消 `.env` 中 `# GEWU_SERVER_DOCKERFILE=Dockerfile.jar` 的注释，然后 `docker compose build gewu-server`。
+
+命令行临时设置时，注意 `VAR=value cmd` 是 bash 语法，PowerShell 不支持（报「无法将…识别为 cmdlet」）：
+
+```powershell
+# PowerShell（Windows）
+$env:GEWU_SERVER_DOCKERFILE = "Dockerfile.jar"; docker compose build gewu-server
+```
+
+```bash
+# bash（Linux/macOS）
+GEWU_SERVER_DOCKERFILE=Dockerfile.jar docker compose build gewu-server
+```
+
+> 模式 B 也可脱离 compose 直接构建（无需任何环境变量）：`docker build -f Dockerfile.jar -t gewu/gewu-server:latest .`
+> 两种模式运行层完全一致（分层缓存 + healthcheck + 时区）。jar 不进 git。
 
 首次启动自动执行 `database/gewu-init.sql` 建表（幂等）。
 
@@ -191,7 +205,7 @@ tar xzf gewu-deploy-pkg.tar.gz
 | 看服务状态 | `docker compose ps` |
 | 看后端日志 | `docker compose logs -f gewu-server`（容器内文件日志：`/app/logs/gewu-web.log`） |
 | 重启后端 | `docker compose restart gewu-server` |
-| 升级后端 | 双模式见 §1.3：模式 A `docker compose build gewu-server`；模式 B 先 `mvn package` + 拷 jar 至 `docker/jar/` 再以 `GEWU_SERVER_DOCKERFILE=Dockerfile.jar` build；完成后 `docker compose up -d` |
+| 升级后端 | 双模式见 §1.3：模式 A `docker compose build gewu-server`；模式 B 先 `mvn package` + 拷 jar 至 `docker/jar/`，在 `.env` 设 `GEWU_SERVER_DOCKERFILE=Dockerfile.jar` 后 build（PowerShell 内联 `VAR=value cmd` 语法不可用，见 Q8）；完成后 `docker compose up -d` |
 | 前端发布 | 重新 `npm run build`，覆盖站点目录，浏览器强刷（产物带 hash 无缓存问题） |
 | 备份数据库 | 见 §5 |
 | 备份知识库文件 | `docker run --rm -v gewu_gewu-uploads:/data -v $PWD:/backup alpine tar czf /backup/uploads.tgz /data` |
@@ -256,6 +270,12 @@ gunzip -c gewu-db-2026-10-23.sql.gz | docker exec -i gewu-db psql -U gewu gewu
 
 **Q7：`docker compose build` 时提示找不到 `docker/jar/gewu-server.jar`（模式 B）？**
 模式 B 需要三步缺一不可：① `mvn package -DskipTests` ② 拷 jar 到 `docker/jar/gewu-server.jar` ③ `.env` 设 `GEWU_SERVER_DOCKERFILE=Dockerfile.jar`。只想容器内编译就用默认模式 A（把该变量删掉即可）。
+
+**Q8：PowerShell 执行 `GEWU_SERVER_DOCKERFILE=Dockerfile.jar docker compose build` 报「无法将…识别为 cmdlet」？**
+`VAR=value cmd` 是 bash 的内联环境变量语法，PowerShell 不支持。改用任一方式：① 推荐 `.env` 设 `GEWU_SERVER_DOCKERFILE=Dockerfile.jar`（取消注释即可，跨平台永久生效）；② PowerShell 临时设置 `$env:GEWU_SERVER_DOCKERFILE = "Dockerfile.jar"` 后再跑 `docker compose build gewu-server`。详见 §1.3 模式 B。
+
+**Q9：`docker compose build` 报 `failed to connect to the docker API ... daemon is running`？**
+Docker 守护进程未运行——先启动 Docker Desktop（Windows），等托盘图标变为 Running 再执行构建。若 Docker Desktop 本身无法启动（引擎损坏），需先修复或重装；容器化非必需，裸机 `mvn spring-boot:run` + nginx 静态托管同样可完成部署（见 §1）。
 
 ## U4 Redis
 
