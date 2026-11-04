@@ -10,6 +10,7 @@ import io.minio.RemoveObjectArgs;
 import io.minio.errors.ErrorResponseException;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
@@ -37,6 +38,7 @@ public class MinioFileStorage implements FileStorage {
     /** 启动期桶检查是否成功（仅用于日志口径；put 时无论如何都会真实探测） */
     private volatile boolean bucketReady = false;
 
+    @Autowired
     public MinioFileStorage(StorageProperties props) {
         this(props, null, null);
     }
