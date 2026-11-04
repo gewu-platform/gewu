@@ -47,6 +47,7 @@
 | DELETE | `/session/{id}` | 删除会话 |
 | POST | `/session/{id}/clear` | 清空历史 |
 | POST | `/message` | 同步对话 |
+| POST | `/upload` | 上传对话图片附件（multipart: file；jpg/jpeg/png/webp/gif、≤10MB；返回预签名 URL） |
 | POST | `/message/stream` | 流式对话（SSE） |
 <!-- 多模态预留说明 -->
 > `POST /message` 与 `/message/stream` 接受 `useMultimodal` / `imageUrls` 字段，

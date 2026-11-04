@@ -6,6 +6,7 @@ import com.gewu.common.BizException;
 import com.gewu.common.ErrorCode;
 import com.gewu.common.R;
 import com.gewu.module.chat.dto.*;
+import com.gewu.module.chat.service.ChatAttachmentService;
 import com.gewu.module.chat.service.CommandService;
 import com.gewu.module.chat.service.ContextCompactService;
 import com.gewu.module.chat.service.ConversationService;
@@ -16,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.HashMap;
@@ -27,7 +29,7 @@ import java.util.stream.Collectors;
 /**
  * 聊天主链路 REST API（/api/chat）。
  *
- * <p>承载消息发送（同步 + SSE 流式）、斜杠命令执行、健康探活四类端点。</p>
+ * <p>承载消息发送（同步 + SSE 流式）、斜杠命令执行、图片附件上传、健康探活四类端点。</p>
  *
  * <p>V2.5.0 重构：本类原为 586 行 / 27 端点的 God Controller，按资源边界拆为三个：
  * {@link ChatController}（消息收发）、{@link ChatSessionController}（会话生命周期）、
@@ -45,6 +47,8 @@ public class ChatController {
     private final CommandService commandService;
     private final LangChain4jConfig langChain4jConfig;
     private final UsageQuotaService usageQuotaService;
+    /** V2.5.0 M1.1：对话图片附件上传（写 MinIO，返回预签名 URL） */
+    private final ChatAttachmentService attachmentService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -206,6 +210,25 @@ public class ChatController {
     @GetMapping("/commands")
     public R<List<com.gewu.module.chat.service.CommandService.CommandSpec>> listCommands() {
         return R.success(commandService.listCommands());
+    }
+
+    /**
+     * V2.5.0 M1.1：上传对话图片附件（写 MinIO，返回预签名访问 URL）
+     *
+     * <p>白名单 jpg/jpeg/png/webp/gif、单文件≤10MB、MIME 前缀 image/ 双保险。
+     * 返回的 URL 可直接回填到 /message 或 /message/stream 的 imageUrls 字段。</p>
+     */
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public R<Map<String, Object>> uploadAttachment(@RequestParam("file") MultipartFile file) {
+        Long currentUserId = usageQuotaService.resolveCurrentUserId();
+        if (currentUserId == null) {
+            throw new BizException(401, "请先登录");
+        }
+        String url = attachmentService.uploadImage(file);
+        Map<String, Object> result = new HashMap<>();
+        result.put("url", url);
+        result.put("maxSizeBytes", ChatAttachmentService.maxSizeBytes());
+        return R.success("上传成功", result);
     }
 
     /**
