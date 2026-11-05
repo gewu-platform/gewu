@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.6.0] - 2026-11-05
+
+### Added
+- **国际化（i18n）**: 前端整体双语化——vue-i18n@9 基建（组合式 + globalInjection）、
+  语言包 zh-CN/en-US 按模块组织（nav/common/header/login/model/approval/placeholder/
+  reasoning/promptView/knowledge/monitor/chat），浏览器语言自动探测 + localStorage 持久化，
+  AntD ConfigProvider 组件库随语言切换，头部语言切换器（中 / EN）
+- **英文版文档**: 后端仓库 README.en.md（157 行，与中文版逐节对应）+
+  前端仓库 README.en.md（功能全景/技术栈/Quick Start/项目结构），双仓库顶部互设语言切换链接
+
+### Migrated
+- 视图文案迁移到 $t()（分四子批，每批构建验证）：ModelView/ApprovalCard/PlaceholderView/
+  ReasoningTimeline（3a，45 行）→ PromptView/KnowledgeView（3b，122 行）→ MonitorView（3c，45 行）
+- ChatView/AgentView/SettingsView 的 $t 迁移进行中（3c 后半/3d）
+- script 区错误消息统一改用组合式 t()（$t 仅模板可用）
+
+### Fixed
+- MinioFileStorage 双构造器致 Spring 启动失败（冒烟实测发现）：主构造器加 @Autowired
+- DEPLOY.md 模式 B 构建命令为 bash 语法（PowerShell 报错）：补双语法对照与 FAQ Q8/Q9
+- CI 持续失败（每次推送均报错）：前端 setup-node 缺 cache-dependency-path（子目录检出陷阱）、
+  后端 dependency-check --failOnCVSS 9 与「报告型不阻断」注释矛盾；
+  修复过程中引入的 env 缩进错误亦已归位
+- docker/jar/README 与 docker/README 职责重叠：收敛为短指针
+
+### Docs
+- DEPLOY.md 补「文件存储 MinIO」小节与架构图更新（V2.5.0 收尾）
+- 数据库双轨契约（init.sql 全量快照 + migrations 增量）写入 ARCHITECTURE/DEPLOY
+- CHANGELOG 补 v2.2.0~v2.5.0 段；文档用语规范（中性表述）写入 AGENTS.md
+
 ## [v2.5.0] - 2026-11-04
 
 ### Added
