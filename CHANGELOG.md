@@ -16,9 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   前端仓库 README.en.md（功能全景/技术栈/Quick Start/项目结构），双仓库顶部互设语言切换链接
 
 ### Migrated
-- 视图文案迁移到 $t()（分四子批，每批构建验证）：ModelView/ApprovalCard/PlaceholderView/
+- 视图文案迁移到 $t()（分五子批，每批构建验证）：ModelView/ApprovalCard/PlaceholderView/
   ReasoningTimeline（3a，45 行）→ PromptView/KnowledgeView（3b，122 行）→ MonitorView（3c，45 行）
-- ChatView/AgentView/SettingsView 的 $t 迁移进行中（3c 后半/3d）
+  → ChatView（3c-Chat，128 行，`63d45db`）→ AgentView/SettingsView（3d，304 行，`d3ad84b`）
+- 语言包 agent/settings 模块注入（终态 570/570 键级对称）；agent/settings 269 键全消费，
+  注入预设孤儿键清理 22 个
+- SettingsView tabs（categories）数组 computed 化，语言热切换生效
 - script 区错误消息统一改用组合式 t()（$t 仅模板可用）
 
 ### Fixed
