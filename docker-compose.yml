@@ -7,6 +7,7 @@
 services:
   gewu-minio:
     image: minio/minio:latest
+    # 拉取报 denied（MinIO 已从 Docker Hub 下架社区镜像）时，见 docs/DEPLOY.md FAQ Q10
     container_name: gewu-minio
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]

@@ -198,6 +198,79 @@ tar xzf gewu-deploy-pkg.tar.gz
 
 ---
 
+## 2.5 单容器模式：复用已有 PG / Redis / MinIO
+
+> 适用：机器上已自建 PostgreSQL（含 pgvector 扩展）、Redis、MinIO，不想再起一套容器的场景。
+> 提供编排文件 `docker-compose.standalone.yml`——**只起 `gewu-server` 一个容器**，数据库/缓存/存储全部指向已有服务。
+
+### 前置条件
+
+| 已有服务 | 要求 |
+|---|---|
+| PostgreSQL | **必须含 pgvector 扩展**（`CREATE EXTENSION IF NOT EXISTS vector;`），版本建议 PG14+；需预先创建好业务库（如 `gewu`） |
+| Redis | 可选（应用不可达时自动降级 DB/内存）；密码/端口无特殊要求 |
+| MinIO | 确保访问密钥可写、目标桶存在（不存在时应用启动会自动创建） |
+
+### 操作步骤
+
+```bash
+cd gewu
+cp .env.example .env
+vi .env
+```
+
+`.env` 在标准项之外，**额外追加/确认以下变量**（standalone 编排读取）：
+
+```bash
+# ---------- 已有服务地址 ----------
+# 容器访问宿主机服务固定用 host.docker.internal（编排已配 extra_hosts）；
+# 服务在其他机器时直接写 IP，如 GEWU_EXT_DB_HOST=172.16.5.14
+GEWU_EXT_DB_HOST=host.docker.internal
+GEWU_EXT_DB_PORT=5432
+GEWU_EXT_REDIS_HOST=host.docker.internal
+GEWU_EXT_REDIS_PORT=6379
+GEWU_EXT_REDIS_PASSWORD=            # 已有 Redis 有密码则填
+GEWU_EXT_MINIO_HOST=host.docker.internal
+GEWU_EXT_MINIO_PORT=9000
+
+# ---------- 已有服务的真实凭据（覆盖 .env.example 的容器默认值） ----------
+GEWU_DB_NAME=gewu                   # 已有 PG 上的业务库名
+GEWU_DB_USER=postgres
+GEWU_DB_PASSWORD=<已有PG真实密码>
+GEWU_STORAGE_ENDPOINT=              # standalone 模式忽略此值，以 EXT_MINIO 为准
+GEWU_STORAGE_PUBLIC_ENDPOINT=http://<服务器IP>:9000   # 浏览器可达的 MinIO 地址（预签名 URL 用）
+GEWU_STORAGE_BUCKET=gewu
+GEWU_STORAGE_ACCESS_KEY=<已有MinIO的AK>
+GEWU_STORAGE_SECRET_KEY=<已有MinIO的SK>
+```
+
+启动（注意 `-f` 指定 standalone 编排）：
+
+```bash
+docker compose -f docker-compose.standalone.yml up -d
+docker compose -f docker-compose.standalone.yml ps
+docker compose -f docker-compose.standalone.yml logs -f gewu-server
+```
+
+### 与标准模式的差异
+
+| 项 | 标准模式（docker-compose.yml） | standalone 模式 |
+|---|---|---|
+| 容器数 | 4（server + db + redis + minio） | 1（仅 server） |
+| 建表 | 首次启动 init.sql 自动建表 | **不会执行**——需手工对已有库执行 `database/gewu-init.sql`（幂等）；之后 Flyway 自动打基线跑增量 |
+| 数据卷 | compose named volume | 无新增卷，数据全在已有服务里 |
+| 备份（§5） | `docker exec gewu-db pg_dump` | 用已有 PG 自己的备份方式 |
+| 升级/重置 | `docker compose down -v` 会删数据卷 | `down` 不会碰已有服务的数据 |
+
+### 注意事项
+
+- **PG 必须允许来自 Docker 网段的连接**：Linux 上容器经 host-gateway 访问宿主机，若 PG 的 `pg_hba.conf` 限制了来源 IP，需放行 `172.17.0.0/16`（Docker 默认网段）
+- **首次启动顺序**：建议先手工执行 init.sql 再启动容器，Flyway 首次启动会对该库打 baseline（`baseline-version=1`），日志出现 `Successfully baselined schema` 属预期
+- **不要**对标准模式和 standalone 模式混用同一份 `.env` 里同名变量含义不同的项（`GEWU_DB_USER` 在标准模式指容器内 PG 的账号，在 standalone 指已有 PG 的账号）
+- Windows/macOS 的 Docker Desktop 天然支持 `host.docker.internal`，无需 extra_hosts；standalone 编排里的 extra_hosts 只对 Linux 必要，其他平台留着无害
+
+---
+
 ## 3. 常用运维
 
 | 操作 | 命令 |
@@ -276,6 +349,16 @@ gunzip -c gewu-db-2026-10-23.sql.gz | docker exec -i gewu-db psql -U gewu gewu
 
 **Q9：`docker compose build` 报 `failed to connect to the docker API ... daemon is running`？**
 Docker 守护进程未运行——先启动 Docker Desktop（Windows），等托盘图标变为 Running 再执行构建。若 Docker Desktop 本身无法启动（引擎损坏），需先修复或重装；容器化非必需，裸机 `mvn spring-boot:run` + nginx 静态托管同样可完成部署（见 §1）。
+
+**Q10：拉取 `minio/minio` 镜像报 `denied`？**
+MinIO 已于 2025 年从 Docker Hub 下架社区镜像（官方源迁往 quay.io，但部分网络环境访问 quay.io 也会 401）。三种解法任选：
+① 本地已有该镜像则无需处理（compose 默认本地有就不拉）；
+② 经第三方同步仓库拉取后打回标准 tag（国内实测可用）：
+```bash
+docker pull swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/minio/minio:latest
+docker tag swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/minio/minio:latest minio/minio:latest
+```
+③ 永久改 `docker-compose.yml` 中 gewu-minio 的 `image:` 为上述华为云完整地址（自担第三方源信任风险）。
 
 ## U4 Redis
 

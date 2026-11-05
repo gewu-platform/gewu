@@ -1,0 +1,51 @@
+# ============================================
+# 格物 Gewu — 单容器模式：只起 gewu-server，复用宿主机已有 PG / Redis / MinIO
+# 适用：机器上已自建 PostgreSQL(pgvector)/Redis/MinIO，不想再起一套容器的场景
+# 用法: cp docker-compose.standalone.yml docker-compose.yml 之类会覆盖原文件——不要这样做；
+#       直接用 -f 指定：docker compose -f docker-compose.standalone.yml up -d
+# 注意：-f 指定其他 compose 文件后，.env 仍在【命令执行目录】读取（即仓库根目录）
+# ============================================
+
+services:
+  gewu-server:
+    image: ${GEWU_SERVER_IMAGE:-gewu/gewu-server:latest}
+    build:
+      context: .
+      dockerfile: ${GEWU_SERVER_DOCKERFILE:-Dockerfile}
+    container_name: gewu-server
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      # ---------- 数据库：指向宿主机已有 PG ----------
+      # Linux 容器访问宿主机服务用 host.docker.internal（需 extra_hosts 映射，下方已配）；
+      # 也可直接写内网 IP（如 172.16.5.14），写 IP 时可删掉 extra_hosts
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${GEWU_EXT_DB_HOST:-host.docker.internal}:${GEWU_EXT_DB_PORT:-5432}/${GEWU_DB_NAME:-gewu}
+      SPRING_DATASOURCE_USERNAME: ${GEWU_DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${GEWU_DB_PASSWORD:?请在 .env 设置 GEWU_DB_PASSWORD（已有 PG 的真实密码）}
+      # ---------- Redis：指向宿主机已有 Redis ----------
+      SPRING_DATA_REDIS_HOST: ${GEWU_EXT_REDIS_HOST:-host.docker.internal}
+      SPRING_DATA_REDIS_PORT: ${GEWU_EXT_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${GEWU_EXT_REDIS_PASSWORD:-}
+      # ---------- 文件存储：指向宿主机已有 MinIO ----------
+      GEWU_STORAGE_ENDPOINT: http://${GEWU_EXT_MINIO_HOST:-host.docker.internal}:${GEWU_EXT_MINIO_PORT:-9000}
+      GEWU_STORAGE_PUBLIC_ENDPOINT: ${GEWU_STORAGE_PUBLIC_ENDPOINT:?请在 .env 设置 GEWU_STORAGE_PUBLIC_ENDPOINT（浏览器可达的 MinIO 地址）}
+      GEWU_STORAGE_BUCKET: ${GEWU_STORAGE_BUCKET:-gewu}
+      GEWU_STORAGE_ACCESS_KEY: ${GEWU_STORAGE_ACCESS_KEY:?请在 .env 设置 GEWU_STORAGE_ACCESS_KEY}
+      GEWU_STORAGE_SECRET_KEY: ${GEWU_STORAGE_SECRET_KEY:?请在 .env 设置 GEWU_STORAGE_SECRET_KEY}
+      # ---------- JWT ----------
+      JWT_SECRET: ${GEWU_JWT_SECRET:?请在 .env 设置 GEWU_JWT_SECRET}
+      JAVA_OPTS: ${GEWU_JAVA_OPTS:--Xms512m -Xmx1024m}
+    volumes:
+      # 迁移文件只读挂载（免重建镜像即可更新增量 SQL；镜像内已内置一份兜底）
+      - ./database/migrations:/app/database/migrations:ro
+    ports:
+      - "${GEWU_SERVER_PORT:-8080}:8081"
+    # Linux 上 host.docker.internal 默认不存在，必须加这条映射
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/api/chat/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
