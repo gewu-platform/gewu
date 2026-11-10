@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * API 错误码定义（对齐 java-ai-native ApiErrorCode）
+ * API 错误码定义
  *
  * @author Matilda
  * @since 2026-10-16

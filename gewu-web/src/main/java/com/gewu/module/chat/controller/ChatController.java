@@ -162,7 +162,7 @@ public class ChatController {
         // T3.4 自动压缩：发送前估算超阈值则先压缩（失败不阻断对话）
         autoCompactIfNeeded(sessionIdFinal, currentUserId);
 
-        // SSE emitter，超时 5 分钟（对齐 native）
+        // SSE emitter，超时 5 分钟
         SseEmitter emitter = new SseEmitter(5 * 60 * 1000L);
 
         StringBuilder fullReply = new StringBuilder();

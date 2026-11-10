@@ -10,7 +10,7 @@ import org.apache.ibatis.annotations.Update;
 import java.util.List;
 
 /**
- * 聊天会话 Mapper（对齐 java-ai-native ChatSessionMapper）
+ * 聊天会话 Mapper
  */
 @Mapper
 public interface ChatSessionMapper extends BaseMapper<ChatSession> {
@@ -33,7 +33,7 @@ public interface ChatSessionMapper extends BaseMapper<ChatSession> {
                          @Param("outputTokens") Long outputTokens);
 
     /**
-     * 查询最近 24 小时内活跃的会话（用于会话复用，对齐 native selectActiveRecent）
+     * 查询最近 24 小时内活跃的会话（用于会话复用）
      */
     @Select("SELECT * FROM chat_session " +
             "WHERE is_deleted = 0 AND update_time > CURRENT_TIMESTAMP - INTERVAL '24 hours' " +

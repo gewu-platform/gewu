@@ -3,7 +3,7 @@ package com.gewu.common;
 import lombok.Getter;
 
 /**
- * API 业务异常（对齐 java-ai-native ApiException）
+ * API 业务异常
  *
  * @author Matilda
  * @since 2026-10-16

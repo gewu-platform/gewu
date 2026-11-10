@@ -3,7 +3,7 @@ package com.gewu.module.prompt.dto;
 import lombok.Data;
 
 /**
- * Prompt 模板执行响应（对齐 java-ai-native PromptExecuteResponse）
+ * Prompt 模板执行响应
  */
 @Data
 public class PromptExecuteResponse {

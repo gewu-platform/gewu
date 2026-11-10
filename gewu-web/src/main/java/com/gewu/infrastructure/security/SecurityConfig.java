@@ -18,7 +18,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * 安全配置类（对齐 java-ai-native SecurityConfig）
+ * 安全配置类
  * 配置应用的安全策略和JWT认证
  *
  * 放行策略（过渡期）：学习示例与旧对话 API 保持匿名可用，
@@ -73,7 +73,7 @@ public class SecurityConfig {
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint(jwtAuthenticationEntryPoint)
             )
-            // 授权配置（对齐 native：健康检查/公开端点放行，其余全部认证）
+            // 授权配置（健康检查/公开端点放行，其余全部认证）
             .authorizeHttpRequests(authz -> authz
                 // ASYNC dispatch（SseEmitter 完成后的内部转发）直接放行；ERROR dispatch（错误页转发）同样放行，
                 // 否则 403 AccessDenied 转发 /error 时被 JWT 过滤器拦成 401，掩盖真实拒绝原因
@@ -91,7 +91,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/agent/definitions/**").hasRole("ADMIN")
                 .requestMatchers("/api/agent/approval/approve").hasRole("ADMIN")
                 .requestMatchers("/api/agent/approval/reject").hasRole("ADMIN")
-                .requestMatchers("/actuator/**").hasRole("ACTUATOR") // 执行器需要 ACTUATOR 角色（对齐 native）
+                .requestMatchers("/actuator/**").hasRole("ACTUATOR") // 执行器需要 ACTUATOR 角色
                 .anyRequest().authenticated()                     // 其他请求必须认证（含 /api/chat/**、/api/service/**、/api/user/**）
             )
             // 禁用CSRF，适用于API应用

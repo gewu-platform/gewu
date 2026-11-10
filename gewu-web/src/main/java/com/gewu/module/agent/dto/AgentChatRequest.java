@@ -3,7 +3,7 @@ package com.gewu.module.agent.dto;
 import lombok.Data;
 
 /**
- * Agent 对话请求 DTO（对齐 java-ai-native AgentChatRequest）
+ * Agent 对话请求 DTO
  *
  * P8a 编排层扩展：sessionId 非空时走「会话模式」——
  * 历史消息从 chat_message 加载注入上下文，回复+工具轨迹落库（对齐对话模块）

@@ -19,7 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * JWT认证过滤器（对齐 java-ai-native JwtAuthenticationFilter）
+ * JWT认证过滤器
  * 在请求到达控制器之前验证JWT令牌
  * 增加数据库 token 有效性校验（替代 Redis）
  */

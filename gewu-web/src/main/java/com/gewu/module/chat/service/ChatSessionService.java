@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 聊天会话服务（对齐 java-ai-native ChatSessionService）
+ * 聊天会话服务
  * 数据库持久化会话；时间戳由数据库 DEFAULT CURRENT_TIMESTAMP 维护
  */
 @Slf4j
@@ -212,7 +212,7 @@ public class ChatSessionService extends ServiceImpl<ChatSessionMapper, ChatSessi
     }
 
     /**
-     * 获取或创建会话（用于会话复用，对齐 native）
+     * 获取或创建会话（用于会话复用）
      * 如果存在 24 小时内活跃的会话，则返回该会话；否则创建新会话
      */
     @Transactional

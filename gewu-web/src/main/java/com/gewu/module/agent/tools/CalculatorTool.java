@@ -9,7 +9,7 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 
 /**
- * 计算器工具（对齐 java-ai-native CalculatorTool）
+ * 计算器工具
  *
  * LangChain4j 原生 @Tool 注解：ToolSpecifications.toolSpecificationsFrom(object)
  * 自动扫描生成 ToolSpecification，DefaultToolExecutor 负责反射调用。

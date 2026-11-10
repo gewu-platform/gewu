@@ -12,7 +12,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * Prompt 模板实体（对齐 java-ai-native PromptTemplate）
+ * Prompt 模板实体
  *
  * 单表多版本：同 name 多 version，uk_name_version 唯一约束；
  * 回滚 = 目标版本 is_active=1、其余版本 is_active=0。

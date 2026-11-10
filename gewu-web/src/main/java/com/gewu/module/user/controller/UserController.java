@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 
 /**
- * 用户控制器（对齐 java-ai-native UserController）
+ * 用户控制器
  * 提供用户相关的接口
  */
 @Slf4j

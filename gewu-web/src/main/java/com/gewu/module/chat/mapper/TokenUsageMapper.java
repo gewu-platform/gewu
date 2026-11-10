@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * Token 使用统计 Mapper（对齐 java-ai-native TokenUsageMapper）
+ * Token 使用统计 Mapper
  */
 @Mapper
 public interface TokenUsageMapper extends BaseMapper<TokenUsage> {

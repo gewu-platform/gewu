@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * LLM 调用日志实体（对齐 java-ai-native LlmCallLog）
+ * LLM 调用日志实体
  */
 @Data
 @TableName("llm_call_log")

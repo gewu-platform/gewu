@@ -5,7 +5,7 @@ import lombok.Data;
 import java.time.LocalDate;
 
 /**
- * 调用日志查询 DTO（对齐 java-ai-native CallLogQuery）
+ * 调用日志查询 DTO
  */
 @Data
 public class CallLogQuery {

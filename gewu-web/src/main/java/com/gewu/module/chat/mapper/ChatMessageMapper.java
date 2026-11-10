@@ -10,7 +10,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * 聊天消息 Mapper（对齐 java-ai-native ChatMessageMapper）
+ * 聊天消息 Mapper
  */
 @Mapper
 public interface ChatMessageMapper extends BaseMapper<ChatMessage> {

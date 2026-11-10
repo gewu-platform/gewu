@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * Prompt 模板版本回滚请求（对齐 java-ai-native RollbackRequest）
+ * Prompt 模板版本回滚请求
  */
 @Data
 public class PromptRollbackRequest {

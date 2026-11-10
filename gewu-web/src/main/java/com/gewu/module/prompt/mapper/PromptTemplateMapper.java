@@ -8,7 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * Prompt 模板 Mapper（对齐 java-ai-native PromptTemplateMapper）
+ * Prompt 模板 Mapper
  */
 @Mapper
 public interface PromptTemplateMapper extends BaseMapper<PromptTemplate> {

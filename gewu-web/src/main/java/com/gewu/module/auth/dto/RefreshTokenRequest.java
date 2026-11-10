@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * 刷新令牌请求 DTO（对齐 java-ai-native）
+ * 刷新令牌请求 DTO
  */
 @Data
 public class RefreshTokenRequest {

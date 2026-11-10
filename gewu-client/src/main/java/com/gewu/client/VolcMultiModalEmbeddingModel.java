@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 火山方舟多模态 Embedding 适配器（对齐 java-ai-native VolcEmbeddingClient 功能形态）
+ * 火山方舟多模态 Embedding 适配器
  *
  * 适配 doubao-embedding-vision 多模态模型
  * API 路径: /api/v3/embeddings/multimodal
@@ -29,7 +29,7 @@ import java.util.List;
  * 响应格式: {"created":123,"data":{"embedding":[...]}}
  * 注意：data 是对象不是数组（与 OpenAI 标准 /embeddings 不同）
  *
- * 对齐 native 的能力：
+ * 核心能力：
  * 1. 双模式：multimodal（多模态端点，逐条串行）/ text（标准 /embeddings，真批量）
  * 2. 429 限流自动退避重试（最多 3 次，2s/4s/6s 递增）
  * 3. 动态维度记录（首次调用后缓存实际维度）
@@ -119,7 +119,6 @@ public class VolcMultiModalEmbeddingModel extends DimensionAwareEmbeddingModel {
 
     /**
      * 多模态端点单条调用，429 自动退避重试（最多 3 次：2s/4s/6s）
-     * 对齐 native embedSingleWithRetry
      */
     private Embedding embedSingleWithRetry(TextSegment segment, int idx) {
         ObjectNode requestBody = objectMapper.createObjectNode();
@@ -137,7 +136,6 @@ public class VolcMultiModalEmbeddingModel extends DimensionAwareEmbeddingModel {
 
     /**
      * 纯文本端点 /embeddings（OpenAI 兼容）：input 为字符串数组，真批量
-     * 对齐 native embedBatchText
      */
     private List<Embedding> embedBatchText(List<TextSegment> segments) {
         ObjectNode requestBody = objectMapper.createObjectNode();

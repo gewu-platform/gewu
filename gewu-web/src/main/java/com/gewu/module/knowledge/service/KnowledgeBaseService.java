@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * 知识库业务服务（对齐 java-ai-native KnowledgeBaseService）
+ * 知识库业务服务
  *
  * 上传：同步落库 + 写入对象存储（MinIO），事务提交后触发后台异步解析/embedding；
  * 检索：查询向量化 → pgvector 余弦相似度 Top-K；

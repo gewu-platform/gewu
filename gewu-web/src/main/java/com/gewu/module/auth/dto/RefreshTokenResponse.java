@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 刷新令牌响应 DTO（对齐 java-ai-native）
+ * 刷新令牌响应 DTO
  */
 @Data
 @Builder

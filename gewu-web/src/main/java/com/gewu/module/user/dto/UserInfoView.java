@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 用户信息 DTO（对齐 java-ai-native UserInfoDTO）
+ * 用户信息 DTO
  */
 @Data
 @Builder

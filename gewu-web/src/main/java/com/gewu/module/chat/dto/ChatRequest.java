@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 聊天请求 DTO（对齐 java-ai-native ChatRequestDTO）
+ * 聊天请求 DTO
  */
 @Data
 @Builder

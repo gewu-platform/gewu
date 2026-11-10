@@ -20,7 +20,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Prompt 模板 Service（对齐 java-ai-native PromptTemplateService）
+ * Prompt 模板 Service
  *
  * 版本制模板：创建自动 +1 版本；回滚 = 目标版本启用、其余停用；
  * 执行 = fillTemplate 填充 {variable} → ChatModel 调用（带/不带 systemPrompt）。
@@ -83,7 +83,7 @@ public class PromptTemplateService {
 
         long duration = System.currentTimeMillis() - startTime;
 
-        // 估算 token（简化计算，对齐 native）
+        // 估算 token（简化计算）
         int inputTokens = (userPrompt.length() +
                 (template.getSystemPrompt() != null ? template.getSystemPrompt().length() : 0)) / 4;
         int outputTokens = content != null ? content.length() / 4 : 0;

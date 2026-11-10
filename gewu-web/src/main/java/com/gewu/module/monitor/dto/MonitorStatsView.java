@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * 监控统计 DTO（对齐 java-ai-native MonitorStatsDTO）
+ * 监控统计 DTO
  */
 @Data
 public class MonitorStatsView {

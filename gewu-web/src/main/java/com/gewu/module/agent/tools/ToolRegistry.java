@@ -15,7 +15,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Agent 工具注册中心（对齐 java-ai-native ToolRegistry，lc4j 原生实现）
+ * Agent 工具注册中心
  *
  * 持有工具实例 + 反射生成的 ToolSpecification/ToolExecutor，
  * DefaultToolExecutor 与 AiServices 内部同款，行为一致。
@@ -261,7 +261,7 @@ public class ToolRegistry {
         for (java.lang.reflect.Method m : bean.getClass().getMethods()) {
             dev.langchain4j.agent.tool.Tool ann = m.getAnnotation(dev.langchain4j.agent.tool.Tool.class);
             if (ann != null) {
-                // @Tool(value) 未显式指定 name 时，lc4j 用方法名作为工具名
+                // @Tool(value) 未显式指定 name 时，LangChain4j 用方法名作为工具名
                 String name = ann.name().isEmpty() ? m.getName() : ann.name();
                 if (name.equals(toolName)) {
                     return m;

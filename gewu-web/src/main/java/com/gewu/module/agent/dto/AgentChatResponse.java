@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * Agent 对话响应 DTO（对齐 java-ai-native AgentChatResponse）
+ * Agent 对话响应 DTO
  */
 @Data
 @Builder

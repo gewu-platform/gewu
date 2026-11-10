@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 工具执行权限网关（对齐 java-ai-native ToolApprovalGateway）
+ * 工具执行权限网关
  *
  * 设计原则：
  * - Agent 级策略优先：requireApproval 页面可配（true=全部审批 / false=免审批 / null=继承默认）

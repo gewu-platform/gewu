@@ -13,7 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 /**
- * 知识库 Controller（对齐 java-ai-native KnowledgeBaseController）
+ * 知识库 Controller
  *
  * 端点：upload / documents / document/{id} GET+DELETE / search
  * 需认证（SecurityConfig anyRequest().authenticated()）

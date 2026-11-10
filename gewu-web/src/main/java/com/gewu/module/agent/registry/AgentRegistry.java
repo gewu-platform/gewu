@@ -20,7 +20,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Agent 注册中心（对齐 java-ai-native AgentRegistry）
+ * Agent 注册中心
  *
  * 内存缓存 + 数据库持久化；启动时加载 enabled=true 的定义。
  */

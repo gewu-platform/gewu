@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * Agent 定义持久化实体（对齐 java-ai-native AgentDefinitionEntity）
+ * Agent 定义持久化实体
  *
  * tool_ids/config/metadata 用 TEXT 存 JSON 字符串（native 用 JSONB + String 直映，等价简化）。
  * enabled 用 SMALLINT（PG Boolean→smallint 走 init.sql 的 IMPLICIT CAST）。

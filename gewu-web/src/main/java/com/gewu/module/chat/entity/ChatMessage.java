@@ -12,7 +12,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 聊天消息实体（对齐 java-ai-native ChatMessage）
+ * 聊天消息实体
  *
  * 对应表：chat_message（PostgreSQL）
  */
@@ -54,7 +54,7 @@ public class ChatMessage implements Serializable {
     private String contentType;
 
     /**
-     * 图片 URL 列表（多模态消息，JSONB 存储）- 对齐 native
+     * 图片 URL 列表（多模态消息，JSONB 存储）
      * 写读经 JsonbTypeHandler 直写 jsonb（Types.OTHER），无需 IMPLICIT CAST
      */
     @TableField(typeHandler = JsonbTypeHandler.class)

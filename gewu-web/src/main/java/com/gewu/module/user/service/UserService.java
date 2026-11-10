@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
 /**
- * 用户服务类（对齐 java-ai-native UserService）
+ * 用户服务类
  * 提供用户相关的业务逻辑
  */
 @Slf4j

@@ -13,7 +13,7 @@ import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
- * 文档分块 Mapper（对齐 java-ai-native DocumentChunkMapper）
+ * 文档分块 Mapper
  *
  * embedding 字段在 SQL 内显式 CAST(... AS vector)，绕过 BaseMapper 默认按 varchar
  * 发送导致的类型不匹配。传入的 embedding 必须是 pgvector 合法文本，如 "[0.1,-0.2,...]"
@@ -45,7 +45,7 @@ public interface DocumentChunkMapper extends BaseMapper<DocumentChunk> {
     int deleteByDocumentId(@Param("documentId") Long documentId);
 
     /**
-     * 基于 pgvector 的余弦相似度检索（对齐 native searchSimilar）
+     * 基于 pgvector 的余弦相似度检索
      *
      * {@code <=>} 是 pgvector 余弦距离操作符，值域 [0, 2]；相似度 = 1 - 距离。
      * 已过滤软删除文档（kd.deleted = 0）。

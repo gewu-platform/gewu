@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 /**
- * 时区转换工具（对齐 java-ai-native TimeZoneTool）
+ * 时区转换工具
  */
 @Slf4j
 @Component

@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Token 使用统计实体（对齐 java-ai-native TokenUsage）
+ * Token 使用统计实体
  *
  * 对应表：token_usage（PostgreSQL）
  */

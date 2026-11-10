@@ -12,7 +12,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 知识库文档实体（对齐 java-ai-native KnowledgeDocument）
+ * 知识库文档实体
  *
  * 对应表：knowledge_document（PostgreSQL）
  */

@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Agent 配置（对齐 java-ai-native AgentConfig，精简）
+ * Agent 配置（精简）
  */
 @Data
 @Builder

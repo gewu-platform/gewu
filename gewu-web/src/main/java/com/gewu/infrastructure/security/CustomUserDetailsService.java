@@ -17,7 +17,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 用户详情服务实现（对齐 java-ai-native CustomUserDetailsService）
+ * 用户详情服务实现
  * 从数据库加载用户详细信息
  * 直接依赖 UserMapper 而非 UserService，避免 Spring 循环依赖
  *

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Prompt 模板 Controller（对齐 java-ai-native PromptTemplateController）
+ * Prompt 模板 Controller
  *
  * 端点：/api/prompt/execute、/list、/{name}、/create、/rollback
  * 认证：SecurityConfig anyRequest().authenticated() 已覆盖，无需单独放行。

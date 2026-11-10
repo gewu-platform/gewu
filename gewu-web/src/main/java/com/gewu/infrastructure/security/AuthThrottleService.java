@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
- * 登录限流服务（对齐 java-ai-native 登录防暴力破解）
+ * 登录限流服务
  *
  * <p>滑动窗口计数：按 用户名|IP 维度限制登录尝试次数，
  * 窗口内失败次数达到上限后拒绝后续尝试。

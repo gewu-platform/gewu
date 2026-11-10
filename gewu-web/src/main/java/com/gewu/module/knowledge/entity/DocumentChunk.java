@@ -8,7 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 文档分块实体（对齐 java-ai-native DocumentChunk）
+ * 文档分块实体
  *
  * 对应表：document_chunk（PostgreSQL，embedding 为 pgvector vector(2048)）
  * 注意：embedding 在实体中为 String（pgvector 文本形式 "[0.1,-0.2,...]"），

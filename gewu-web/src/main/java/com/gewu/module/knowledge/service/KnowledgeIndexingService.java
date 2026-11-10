@@ -17,7 +17,7 @@ import java.util.List;
 import com.gewu.module.setting.service.ModelProviderService;
 
 /**
- * 知识库后台索引服务（对齐 java-ai-native KnowledgeIndexingService）
+ * 知识库后台索引服务
  *
  * 独立成类是为了让 @Async 通过 Spring 代理生效
  * （同类内直接调用异步方法会短路走本地栈，拿不到代理）。

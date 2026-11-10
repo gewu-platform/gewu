@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * LLM 调用日志 Mapper（对齐 java-ai-native LlmCallLogMapper）
+ * LLM 调用日志 Mapper
  */
 @Mapper
 public interface LlmCallLogMapper extends BaseMapper<LlmCallLog> {

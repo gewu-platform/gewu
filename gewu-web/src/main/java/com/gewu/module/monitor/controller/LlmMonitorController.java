@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * LLM 调用监控面板 REST API（对齐 java-ai-native LlmMonitorController）
+ * LLM 调用监控面板 REST API
  *
  * 端点：/api/monitor/stats、/api/monitor/logs、/api/monitor/models
  * 认证：SecurityConfig anyRequest().authenticated() 已覆盖，无需单独放行。

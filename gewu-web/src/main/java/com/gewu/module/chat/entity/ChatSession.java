@@ -10,7 +10,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 聊天会话实体（对齐 java-ai-native ChatSession）
+ * 聊天会话实体
  *
  * 对应表：chat_session（PostgreSQL）
  */

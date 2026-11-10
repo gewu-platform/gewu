@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 模式状态 DTO（对齐 java-ai-native ModeStatusDTO）
+ * 模式状态 DTO
  * LangChain4j 版：当前只支持 text 模式，multimodal 预留
  */
 @Data

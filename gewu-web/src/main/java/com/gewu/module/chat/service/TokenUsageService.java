@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 
 /**
- * Token 使用统计服务（对齐 java-ai-native TokenUsageService）
+ * Token 使用统计服务
  */
 @Slf4j
 @Service
@@ -45,7 +45,7 @@ public class TokenUsageService {
 
     /**
      * 计算成本（从 LangChain4jConfig 获取模型价格配置，暂无价格配置时用默认值）
-     * 默认单价对齐 native：输入 0.004 元/千 token，输出 0.012 元/千 token
+     * 默认单价：输入 0.004 元/千 token，输出 0.012 元/千 token
      */
     private BigDecimal calculateCost(String model, int inputTokens, int outputTokens) {
         // LangChain4jConfig.ModelConfig 暂无价格字段，使用默认单价（与 native 兜底一致）

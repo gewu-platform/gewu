@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 
 /**
- * JWT认证入口点（对齐 java-ai-native JwtAuthenticationEntryPoint）
+ * JWT认证入口点
  * 当未认证用户尝试访问受保护资源时返回401错误
  * 返回格式与 GlobalExceptionHandler 保持一致：R&lt;Void&gt;
  */

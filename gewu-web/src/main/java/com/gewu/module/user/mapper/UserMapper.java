@@ -6,7 +6,7 @@ import com.gewu.module.user.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 用户 Mapper（对齐 java-ai-native UserMapper）
+ * 用户 Mapper
  *
  * <p>注：User 实体未配置 @TableLogic，查询时需手动过滤 deleted=0。</p>
  */

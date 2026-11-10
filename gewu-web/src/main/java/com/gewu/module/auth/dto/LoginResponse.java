@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 import com.gewu.module.user.dto.UserInfoView;
 
 /**
- * 登录响应 DTO（对齐 java-ai-native LoginResponseDTO）
+ * 登录响应 DTO
  */
 @Data
 @Builder

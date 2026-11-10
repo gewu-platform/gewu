@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 登录防暴力破解配置（对齐 java-ai-native security.auth.throttle 配置形态）
+ * 登录防暴力破解配置
  * native 仅留配置未实现，此处补齐实现
  */
 @Data

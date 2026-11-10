@@ -5,7 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 统一响应包装器（对齐 java-ai-native Result）
+ * 统一响应包装器
  *
  * @param <T> 响应数据类型
  * @author Matilda

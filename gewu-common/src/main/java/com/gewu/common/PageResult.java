@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * 分页响应结果（对齐 java-ai-native 分页形态）
+ * 分页响应结果
  *
  * @param <T> 数据类型
  * @author Matilda

@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 /**
- * 全局异常处理器（对齐 java-ai-native GlobalExceptionHandler）
+ * 全局异常处理器
  * 捕获并处理所有未处理的异常，统一返回 R 格式
  *
  * @author Matilda

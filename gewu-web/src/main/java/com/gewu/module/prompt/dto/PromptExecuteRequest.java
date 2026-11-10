@@ -6,7 +6,7 @@ import lombok.Data;
 import java.util.Map;
 
 /**
- * Prompt 模板执行请求（对齐 java-ai-native PromptExecuteRequest）
+ * Prompt 模板执行请求
  */
 @Data
 public class PromptExecuteRequest {

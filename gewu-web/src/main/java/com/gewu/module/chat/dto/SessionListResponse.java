@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * 会话列表响应 DTO（对齐 java-ai-native SessionListResponseDTO）
+ * 会话列表响应 DTO
  */
 @Data
 @Builder

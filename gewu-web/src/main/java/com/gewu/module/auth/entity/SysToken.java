@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * Token 实体（对齐 java-ai-native SysToken）
+ * Token 实体
  * 数据库维护 token 状态（替代 Redis）
  */
 @Data

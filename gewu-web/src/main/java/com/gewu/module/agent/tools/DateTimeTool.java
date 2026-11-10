@@ -11,7 +11,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * 日期时间工具（对齐 java-ai-native DateTimeTool）
+ * 日期时间工具
  */
 @Slf4j
 @Component

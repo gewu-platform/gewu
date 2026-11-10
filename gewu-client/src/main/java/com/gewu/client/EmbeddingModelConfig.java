@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 知识库 Embedding 模型配置（对齐 java-ai-native）
+ * 知识库 Embedding 模型配置
  *
  * 提供配置属性绑定（供 ModelProviderService 兕底用）。原 @Bean 单例已摘除（T3 配置中心化，
  * 实例改由 ModelProviderService 版本化缓存管理，支持动态生效）。

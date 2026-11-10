@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * JWT 工具类（对齐 java-ai-native JwtUtil）
+ * JWT 工具类
  * 基于 hutool-jwt 实现
  *
  * @author Matilda

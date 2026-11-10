@@ -9,7 +9,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * 异步执行器配置（对齐 java-ai-native knowledgeExecutor 模式）
+ * 异步执行器配置
  *
  * knowledgeExecutor：知识库索引（既有 @Async 引用，此前无 bean 定义走 fallback）；
  * monitorExecutor：LLM 调用日志异步落库（P6）。

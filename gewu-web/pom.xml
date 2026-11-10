@@ -116,7 +116,7 @@
         </dependency>
 
         <!-- 测试依赖 -->
-        <!-- 知识库文档解析（对齐 native：PDFBox 3.x + POI 5.x） -->
+        <!-- 知识库文档解析（PDFBox 3.x + POI 5.x） -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>

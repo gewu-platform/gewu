@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * 用户登录请求 DTO（对齐 java-ai-native）
+ * 用户登录请求 DTO
  */
 @Data
 public class LoginRequest {

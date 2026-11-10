@@ -47,11 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Agent 服务（lc4j 原生 Function Calling 实现）
+ * Agent 服务
  *
  * 与 native（Spring AI 文本提示 ReAct）的本质差异：
  * - native 用纯文本 Prompt 描述工具 + 正则解析 Action/Action Input
- * - lc4j 用原生 ToolSpecification 传入模型，模型返回结构化 ToolExecutionRequest
+ * - LangChain4j 用原生 ToolSpecification 传入模型，模型返回结构化 ToolExecutionRequest
  *   （OpenAI 兼容 function calling），无解析失败风险
  *
  * 循环：LLM(带 tools) → AiMessage(toolRequests) → 审批网关 → 执行工具

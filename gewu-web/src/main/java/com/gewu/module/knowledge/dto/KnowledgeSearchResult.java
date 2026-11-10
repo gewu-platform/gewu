@@ -3,7 +3,7 @@ package com.gewu.module.knowledge.dto;
 import lombok.Data;
 
 /**
- * 知识检索结果 DTO（对齐 java-ai-native KnowledgeSearchResult）
+ * 知识检索结果 DTO
  */
 @Data
 public class KnowledgeSearchResult {

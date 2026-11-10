@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 会话响应 DTO（对齐 java-ai-native SessionResponseDTO）
+ * 会话响应 DTO
  */
 @Data
 @Builder

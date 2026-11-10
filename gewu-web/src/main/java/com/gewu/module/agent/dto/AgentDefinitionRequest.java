@@ -6,7 +6,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * Agent 定义管理请求 DTO（对齐 java-ai-native AgentDefinitionRequest）
+ * Agent 定义管理请求 DTO
  */
 @Data
 public class AgentDefinitionRequest {

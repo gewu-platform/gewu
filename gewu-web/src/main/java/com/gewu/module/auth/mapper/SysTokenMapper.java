@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * Token Mapper（对齐 java-ai-native SysTokenMapper）
+ * Token Mapper
  * 用于数据库维护 token 状态（替代 Redis）
  */
 @Mapper

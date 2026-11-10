@@ -23,7 +23,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 认证控制器（对齐 java-ai-native AuthController）
+ * 认证控制器
  * 提供登录、注册等认证相关接口
  */
 @Slf4j
@@ -44,7 +44,7 @@ public class AuthController {
     @PostMapping("/login")
     public R<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest,
                                      HttpServletRequest httpRequest) {
-        // 登录限流：按 用户名|IP 维度防暴力破解（对齐 native security.auth.throttle：5 次/300 秒）
+        // 登录限流：按 用户名|IP 维度防暴力破解（5 次/300 秒）
         String throttleKey = loginRequest.getUsername() + "|" + getClientIp(httpRequest);
         if (!authThrottleService.isAllowed(throttleKey)) {
             log.warn("登录尝试过于频繁，已限流: key={}", throttleKey);

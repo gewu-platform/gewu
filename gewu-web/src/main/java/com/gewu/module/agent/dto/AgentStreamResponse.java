@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * Agent 事件流 DTO（对齐 java-ai-native AgentStreamResponse）
+ * Agent 事件流 DTO
  *
  * 事件类型：iteration/thought/action/tool_result/approval_required/done/error
  */

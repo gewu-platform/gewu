@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 文档解析服务（对齐 java-ai-native DocumentParseService）
+ * 文档解析服务
  *
  * 支持 PDF / DOCX / TXT / MD 四种格式；
  * 切片策略：按段落聚合 + 动态 chunk size（大文件大块省 API，小文件小块提精度）+ 10% 重叠

@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 会话上下文管理服务（对齐 java-ai-native ConversationService，数据库版本）
+ * 会话上下文管理服务（数据库版本）
  * LangChain4j 实现：从数据库加载历史消息构建上下文
  */
 @Slf4j

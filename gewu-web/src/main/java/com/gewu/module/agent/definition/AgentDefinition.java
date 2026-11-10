@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * Agent 定义（对齐 java-ai-native AgentDefinition）
+ * Agent 定义
  *
  * 内存态定义：AgentRegistry 缓存，DB 由 AgentDefinitionEntity 持久化
  */

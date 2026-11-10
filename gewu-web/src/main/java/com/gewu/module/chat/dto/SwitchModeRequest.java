@@ -3,7 +3,7 @@ package com.gewu.module.chat.dto;
 import lombok.Data;
 
 /**
- * 模式切换请求 DTO（对齐 java-ai-native SwitchModeRequestDTO）
+ * 模式切换请求 DTO
  */
 @Data
 public class SwitchModeRequest {

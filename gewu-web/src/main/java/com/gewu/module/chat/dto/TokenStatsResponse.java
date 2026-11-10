@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
 /**
- * Token 统计响应 DTO（对齐 java-ai-native TokenStatsResponseDTO）
+ * Token 统计响应 DTO
  */
 @Data
 @Builder

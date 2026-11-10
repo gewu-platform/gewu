@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 流式聊天响应 DTO（对齐 java-ai-native ChatStreamResponseDTO）
+ * 流式聊天响应 DTO
  * SSE 事件体：chunk / done / error 三种形态
  */
 @Data

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Token 服务（对齐 java-ai-native SysTokenService）
+ * Token 服务
  * 使用数据库维护 token 状态（替代 Redis）
  */
 @Slf4j

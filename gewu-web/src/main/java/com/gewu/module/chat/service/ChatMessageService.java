@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 聊天消息服务（对齐 java-ai-native ChatMessageService）
+ * 聊天消息服务
  * 时间戳由数据库 DEFAULT CURRENT_TIMESTAMP 维护
  */
 @Slf4j
@@ -22,7 +22,7 @@ public class ChatMessageService extends ServiceImpl<ChatMessageMapper, ChatMessa
     private final ChatMessageMapper chatMessageMapper;
 
     /**
-     * 保存消息（通用方法，对齐 native saveMessage）
+     * 保存消息（通用方法）
      */
     @Transactional
     public ChatMessage saveMessage(String sessionId, String role, String content, String contentType,

@@ -3,7 +3,7 @@ package com.gewu.module.monitor.dto;
 import lombok.Data;
 
 /**
- * 小时级统计 DTO（对齐 java-ai-native HourlyStatDTO）
+ * 小时级统计 DTO
  */
 @Data
 public class HourlyStatView {

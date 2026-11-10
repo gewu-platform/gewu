@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 用户实体（对齐 java-ai-native User）
+ * 用户实体
  * 存储系统用户的基本信息
  */
 @Data

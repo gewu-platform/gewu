@@ -5,7 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 /**
- * 模型使用统计 DTO（对齐 java-ai-native ModelUsageDTO）
+ * 模型使用统计 DTO
  */
 @Data
 public class ModelUsageView {
