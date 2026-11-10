@@ -1,16 +1,20 @@
 -- ========================================== 
--- langchain4j_kb - PostgreSQL 数据库初始化脚本（全量单文件维护）
--- 对齐 java-ai-native ai-native-init.sql 表结构
--- 执行方式:
---   psql -h 127.0.0.1 -p 5432 -U postgres -d langchain4j_kb -f langchain4j-kb-init.sql
--- 维护约定：后续所有表结构调整直接更新本文件（不再拆分独立 SQL）
+-- 格物 Gewu - PostgreSQL 数据库初始化脚本（全量单文件维护）
+-- 执行方式（手动初始化 / 本地重建，两步）:
+--   1) 建库（Docker 编排由 POSTGRES_DB 自动建库，跳过本步；库名默认 gewu）:
+--      psql -h 127.0.0.1 -p 5432 -U postgres -c "CREATE DATABASE gewu ENCODING 'UTF8' TEMPLATE template0"
+--   2) 执行本脚本:
+--      psql -h 127.0.0.1 -p 5432 -U postgres -d gewu -f gewu-init.sql
+-- 本机开发库与部署库名已统一为 gewu（2026-11-10）；重建时按上述两步执行
+-- 维护约定：
+--   结构调整直接更新本文件（不再拆分独立 SQL）；增量变更走 database/migrations/（Flyway）并同步本文件
 -- ==========================================
 
 -- pgvector 扩展
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ==========================================
--- 1. 聊天消息表 (chat_message) - 对齐 native
+-- 1. 聊天消息表 (chat_message)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS chat_message (
     id            BIGSERIAL       PRIMARY KEY,
@@ -43,7 +47,7 @@ ALTER TABLE chat_message ADD COLUMN IF NOT EXISTS compressed SMALLINT DEFAULT 0;
 COMMENT ON COLUMN chat_message.compressed IS '上下文压缩标记 - 1=已并入 context_summary';
 
 -- ==========================================
--- 2. 聊天会话表 (chat_session) - 对齐 native
+-- 2. 聊天会话表 (chat_session)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS chat_session (
     id            VARCHAR(64)     PRIMARY KEY,
@@ -73,7 +77,7 @@ COMMENT ON COLUMN chat_session.is_deleted IS '是否删除 - 0:未删除/1:已�
 CREATE INDEX IF NOT EXISTS idx_chat_session_create_time ON chat_session(create_time);
 CREATE INDEX IF NOT EXISTS idx_chat_session_update_time ON chat_session(update_time);
 CREATE INDEX IF NOT EXISTS idx_chat_session_user_id ON chat_session(user_id);
--- 4. 用户表 (sys_user) - 对齐 native（P1 认证）
+-- 4. 用户表 (sys_user)（P1 认证）
 -- ==========================================
 CREATE TABLE IF NOT EXISTS sys_user (
     id              BIGSERIAL       PRIMARY KEY,
@@ -97,14 +101,14 @@ COMMENT ON COLUMN sys_user.deleted IS '是否删除 - 0:未删除/1:已删除（
 CREATE INDEX IF NOT EXISTS idx_sys_user_status ON sys_user(status);
 CREATE INDEX IF NOT EXISTS idx_sys_user_deleted ON sys_user(deleted);
 
--- 默认管理员（密码: admin123，BCrypt 加密，对齐 native）
+-- 默认管理员（密码: admin123，BCrypt 加密）
 -- 注：hash 用 spring-security-crypto BCryptPasswordEncoder 生成并 matches 验证（2026-10-16）
 INSERT INTO sys_user (username, email, password, nickname, status, deleted)
 VALUES ('admin', 'admin@example.com', '$2a$10$jXc2.M.5YHUXnopDEJeM/eK6uJ1JUW1Gq1vhI5x4eVjcPKatUlpfq', '管理员', 1, 0)
 ON CONFLICT (username) DO NOTHING;
 
 -- ==========================================
--- 5. Token 表 (sys_token) - 对齐 native（数据库维护 token 状态，替代 Redis）
+-- 5. Token 表 (sys_token)（数据库维护 token 状态，替代 Redis）
 -- ==========================================
 CREATE TABLE IF NOT EXISTS sys_token (
     id                 BIGSERIAL       PRIMARY KEY,
@@ -127,7 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_sys_token_status ON sys_token(status);
 CREATE INDEX IF NOT EXISTS idx_sys_token_expires_at ON sys_token(expires_at);
 
 -- ==========================================
--- 6. Token 使用统计表 (token_usage) - 对齐 native（P3）
+-- 6. Token 使用统计表 (token_usage)（P3）
 -- ==========================================
 CREATE TABLE IF NOT EXISTS token_usage (
     id            BIGSERIAL       PRIMARY KEY,
@@ -149,7 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_model ON token_usage(model);
 CREATE INDEX IF NOT EXISTS idx_token_usage_message_id ON token_usage(message_id);
 
 -- ==========================================
--- 7. 知识库文档表 (knowledge_document) - 对齐 native（P4）
+-- 7. 知识库文档表 (knowledge_document)（P4）
 -- ==========================================
 CREATE TABLE IF NOT EXISTS knowledge_document (
     id          BIGSERIAL       PRIMARY KEY,
@@ -172,7 +176,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_document_status ON knowledge_document(s
 CREATE INDEX IF NOT EXISTS idx_knowledge_document_deleted ON knowledge_document(deleted);
 
 -- ==========================================
--- 8. 文档分块表 (document_chunk) - 对齐 native（P4，pgvector 向量）
+-- 8. 文档分块表 (document_chunk)（P4，pgvector 向量）
 -- ==========================================
 CREATE TABLE IF NOT EXISTS document_chunk (
     id          BIGSERIAL       PRIMARY KEY,
@@ -192,7 +196,7 @@ CREATE INDEX IF NOT EXISTS idx_document_chunk_document_id ON document_chunk(docu
 CREATE INDEX IF NOT EXISTS idx_document_chunk_chunk_index ON document_chunk(chunk_index);
 
 -- =============================================================
--- 9. Prompt 模板表 (prompt_template) - 对齐 native（P5）
+-- 9. Prompt 模板表 (prompt_template)（P5）
 --    单表多版本：同 name 多 version，uk_name_version 唯一约束
 -- =============================================================
 CREATE TABLE IF NOT EXISTS prompt_template (
@@ -240,7 +244,7 @@ END
 $do$;
 
 -- =============================================================
--- 10. LLM 调用日志表 (llm_call_log) - 对齐 native（P6）
+-- 10. LLM 调用日志表 (llm_call_log)（P6）
 --     记录每次大模型调用的性能指标和费用
 -- =============================================================
 CREATE TABLE IF NOT EXISTS llm_call_log (
@@ -270,7 +274,7 @@ CREATE INDEX IF NOT EXISTS idx_llm_call_log_create_time ON llm_call_log(create_t
 CREATE INDEX IF NOT EXISTS idx_llm_call_log_user_id ON llm_call_log(user_id);
 
 -- =============================================================
--- 11. Agent 定义表 (agent_definition) - 对齐 native（P7）
+-- 11. Agent 定义表 (agent_definition)（P7）
 --     DB 持久化 + AgentRegistry 运行时缓存
 -- =============================================================
 CREATE TABLE IF NOT EXISTS agent_definition (
@@ -295,7 +299,7 @@ COMMENT ON COLUMN agent_definition.config IS 'Agent 配置（JSON 字符串：mo
 
 CREATE INDEX IF NOT EXISTS idx_agent_definition_enabled ON agent_definition(enabled);
 
--- 种子数据：4 个内置 Agent（对齐 native agent_tables.sql，精简版）
+-- 种子数据：4 个内置 Agent（精简版）
 INSERT INTO agent_definition (id, name, description, type, system_prompt, greeting, tool_ids, config)
 SELECT 'general-assistant', '通用助手',
        '全能型 AI 助手，能回答各类问题、进行数学计算、查询时间和时区信息。',

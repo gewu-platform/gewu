@@ -6,7 +6,7 @@ spring:
   application:
     name: gewu
 
-  # ==================== 文件上传配置（对齐 native：P4 知识库） ====================
+  # ==================== 文件上传配置（P4 知识库） ====================
   servlet:
     multipart:
       enabled: true
@@ -17,7 +17,7 @@ spring:
   # ==================== 数据库配置 ====================
   # PostgreSQL（业务数据 + 知识库向量）
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5432/langchain4j_kb
+    url: jdbc:postgresql://127.0.0.1:5432/gewu
     username: postgres
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
@@ -142,7 +142,7 @@ jwt:
   secret: ${JWT_SECRET:mySecretKeyMustBeAtLeast32CharactersLongForHS512Algorithm}
   expiration: ${JWT_EXPIRATION:86400} # 24小时（秒）
 
-# ==================== 自定义安全配置（对齐 native） ====================
+# ==================== 自定义安全配置 ====================
 security:
   auth:
     throttle:
