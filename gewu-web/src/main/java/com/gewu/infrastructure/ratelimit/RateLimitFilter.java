@@ -48,7 +48,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     FilterChain chain) throws ServletException, IOException {
         String path = request.getRequestURI();
 
-        if (!rateLimitService.isEnabled() || !isChatScope(path)) {
+        if (!rateLimitService.isEnabled() || !isChatScope(path)
+                || "GET".equals(request.getMethod())) {
+            // 只读查询（GET）不参与限流：sessions/context-usage/messages/models 等无 LLM 边际成本，
+            // 纳入限流会导致一次页面加载即耗尽令牌桶（V2.2.0 A3 语义修正）。
+            // 约定：LLM 调用入口（发消息/流式）必须用 POST，新增 GET 形式的模型调用前先改这里的策略。
             chain.doFilter(request, response);
             return;
         }
