@@ -16,7 +16,7 @@
 | Node.js | ≥ 20（仅构建前端产物时需要；可在任意机器构建后拷贝 dist） |
 | 内存 | ≥ 8G（后端 JVM 1G + PG + nginx） |
 | 磁盘 | ≥ 20G（镜像 + 数据卷 + 知识库文件） |
-| 模型 Key | 任一 OpenAI 兼容端点的 API Key（火山方舟/DeepSeek/Moonshot 等；部署后在网页「设置」里配） |
+| 模型 Key | 任一 OpenAI 兼容端点的 API Key（火山方舟/DeepSeek/Moonshot 等）；两种配置方式：① `.env` 设置 `VOLC_API_KEY`，首次启动自动导入 llm_provider（seed）；② 部署后在网页「设置」里配（写库持久化，可随时覆盖 seed） |
 
 ---
 

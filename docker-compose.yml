@@ -97,8 +97,9 @@ services:
       GEWU_STORAGE_SECRET_KEY: ${GEWU_STORAGE_SECRET_KEY:?请在 .env 设置 GEWU_STORAGE_SECRET_KEY}
       # JWT（生产必须改随机值）
       JWT_SECRET: ${GEWU_JWT_SECRET:?请在 .env 设置 GEWU_JWT_SECRET}
-      # 模型 Key：不经 compose 透传（空值会覆盖 yml 默认种子导致模型不可用）。
-      # 当前阶段：容器内用 yml 默认 key（开发仓库私有）；T3 配置中心上线后改为网页配置，此处彻底移除
+      # 模型 Key：T3 seed 依赖——首次启动时导入 llm_provider 表（llm_provider 为空且 yml 缺 key 时对话不可用）
+      # .env 的 VOLC_API_KEY 为 seed 数据源；部署后可在网页「设置→模型配置」随时覆盖（写库持久化）
+      VOLC_API_KEY: ${VOLC_API_KEY:-}
       JAVA_OPTS: ${GEWU_JAVA_OPTS:--Xms512m -Xmx1024m}
     volumes:
       # V2.5.0 M1.1.1：文件本体已改存 MinIO，原 uploads 挂载废弃
