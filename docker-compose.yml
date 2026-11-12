@@ -100,11 +100,16 @@ services:
       # 模型 Key：T3 seed 依赖——首次启动时导入 llm_provider 表（llm_provider 为空且 yml 缺 key 时对话不可用）
       # .env 的 VOLC_API_KEY 为 seed 数据源；部署后可在网页「设置→模型配置」随时覆盖（写库持久化）
       VOLC_API_KEY: ${VOLC_API_KEY:-}
+      # Skill 扫描目录：指向容器内挂载点（宿主机真实目录由 GEWU_SKILLS_DIR_HOST 挂载进来）
+      GEWU_SKILLS_DIR: /app/skills
       JAVA_OPTS: ${GEWU_JAVA_OPTS:--Xms512m -Xmx1024m}
     volumes:
       # V2.5.0 M1.1.1：文件本体已改存 MinIO，原 uploads 挂载废弃
       # V2.3.0：迁移文件只读挂载（免重建镜像即可更新增量 SQL；镜像内已内置一份兜底）
       - ./database/migrations:/app/database/migrations:ro
+      # 公共 Skill 库：宿主机 skills 目录只读挂载进容器（容器内扫描 /app/skills；
+      # 宿主机路径在 .env 的 GEWU_SKILLS_DIR_HOST 配置，Windows/Linux 按部署平台填写）
+      - ${GEWU_SKILLS_DIR_HOST:?请在 .env 设置 GEWU_SKILLS_DIR_HOST}:/app/skills:ro
     ports:
       - "${GEWU_SERVER_PORT:-8080}:8081"
     healthcheck:

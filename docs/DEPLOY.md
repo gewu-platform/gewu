@@ -410,7 +410,8 @@ docker tag swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/minio/minio:latest
 
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
-| `GEWU_SKILLS_DIR` | `C:\Users\<user>\.agents\skills` | 公共 Skill 库扫描目录（每个子目录一个 SKILL.md） |
+| `GEWU_SKILLS_DIR` | 容器 `/app/skills`；本机开发 `C:\Users\<user>\.agents\skills` | 公共 Skill 库扫描目录（每个子目录一个 SKILL.md）；Docker 部署时由 compose 注入并指向容器内挂载点 |
+| `GEWU_SKILLS_DIR_HOST` | `C:/Users/<user>/.agents/skills` | 宿主机 skills 目录（只读挂载进容器 `/app/skills`；Windows 用正斜杠写法，Linux 部署按平台填） |
 
 > 也可在「设置 → 公共 Skill」运行时切换目录（仅内存态，重启回退本变量/配置值）。
 
