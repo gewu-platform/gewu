@@ -49,7 +49,7 @@ public class PluginRegistryService {
                 .orderByAsc(PluginRegistry::getCode));
     }
 
-    /** 一键安装：登记进 mcp_server（启用即连接桥接） */
+    /** 一键安装：登记进 mcp_server 并尽力连接（端点不可达时保持登记态，不阻塞安装） */
     public Map<String, Object> install(Long id) {
         PluginRegistry row = requireRow(id);
         if (Boolean.TRUE.equals(row.getInstalled())) {
@@ -59,7 +59,7 @@ public class PluginRegistryService {
         req.setName(row.getCode());
         req.setTransport(row.getTransport() != null ? row.getTransport() : "http_sse");
         req.setEndpoint(row.getEndpoint());
-        req.setEnabled(true);
+        req.setEnabled(false);
         req.setRemark("由插件仓库安装：" + row.getName());
         req.setToolAllow(row.getToolAllow());
         McpServer server;
@@ -95,9 +95,20 @@ public class PluginRegistryService {
         row.setInstalledName(server.getName());
         row.setUpdateTime(LocalDateTime.now());
         mapper.updateById(row);
-        log.info("[Plugin] 安装完成：code={}, mcpName={}", row.getCode(), server.getName());
+
+        // 尽力连接：连通即启用桥接；占位端点等不可达场景保持登记态（enabled=false），
+        // 待端点可达后在「模型服务 → MCP」中启用——不再因占位端点阻塞安装
+        boolean connected = false;
+        try {
+            mcpServerService.enable(server.getId());
+            connected = true;
+        } catch (Exception connectEx) {
+            log.info("[Plugin] 端点暂不可达，保持登记态：code={}, endpoint={}", row.getCode(), row.getEndpoint());
+        }
+
+        log.info("[Plugin] 安装完成：code={}, mcpName={}, connected={}", row.getCode(), server.getName(), connected);
         return Map.of("code", row.getCode(), "installedName", server.getName(),
-                "endpoint", row.getEndpoint());
+                "endpoint", row.getEndpoint(), "connected", connected);
     }
 
     /** 卸载：删除 mcp_server 登记（断开桥接） */
