@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **插件安装语义**：由「连接成功才登记」改为「登记 + 尽力连接」，占位端点不再阻塞安装；返回 `connected` 标记供前端区分提示
+- **公共 Skill 库**：容器化部署下扫描目录不存在（宿主机路径硬编码），改为宿主机目录只读挂载至 `/app/skills` + `GEWU_SKILLS_DIR` 注入
+- **对话限流**：只读 GET 不再消耗对话令牌桶（此前一次页面加载即耗尽容量 10）
+- **模型 Key 链路**：compose 补 `VOLC_API_KEY` 透传，修复 `llm_provider` seed 跳过导致对话 `AuthenticationError`
+- **设置页布局**：修正模板 `</div>` 提前闭合致「插件仓库/公共 Skill」脱离滚动容器（表现为内容区塌陷、区块固定）
+- **设置页样式**：补全 `.btn-sm`/`.td-actions` 等缺失样式；插件表单字段卡片化；Skill 清单渲染
+- **知识库页空白**：补 `computed` 导入
+- **新增插件报错**：补 `createPlugin` 导入
+
+### Changed
+- 品牌视觉对齐 FastGPT 设计语言：`--accent` → `#3370FF`，渐变收敛 12 处
+- 数据库名全面统一为 `gewu`（本机与部署一致），`gewu-init.sql` 头部重建（品牌化 + 补建库步骤 + 双轨维护约定）
+- 清除源码注释中 `java-ai-native` 溯源引用（95 文件）
+
+### Docs
+- 新增 `docs/plan/V2.7.0-PLAN.md`（UI 设计系统化 + 部署形态复盘 + 18 项问题清单）
+- 新增 `docs/decisions/0002-部署形态评估.md`（容器化合理性评估）
+
 ## [v2.6.0] - 2026-11-05
 
 ### Added
