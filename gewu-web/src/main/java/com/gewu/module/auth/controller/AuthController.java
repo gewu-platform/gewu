@@ -88,7 +88,13 @@ public class AuthController {
             // 保存 token 到数据库（替代 Redis）
             String deviceInfo = httpRequest.getHeader("User-Agent");
             String ipAddress = getClientIp(httpRequest);
-            sysTokenService.saveToken(user.getId(), token, refreshToken, deviceInfo, ipAddress);
+            // P19：设备标识优先取客户端 deviceId；缺省时以 UA 派生稳定键（兼容旧客户端）
+            String deviceId = loginRequest.getDeviceId();
+            if (deviceId == null || deviceId.isBlank()) {
+                deviceId = "ua-" + Integer.toHexString((deviceInfo == null ? "" : deviceInfo).hashCode());
+            }
+            sysTokenService.saveToken(user.getId(), token, refreshToken, deviceInfo, ipAddress,
+                    deviceId);
         }
 
         log.info("用户登录成功: {}", loginRequest.getUsername());
@@ -133,7 +139,12 @@ public class AuthController {
         // 保存 token 到数据库
         String deviceInfo = httpRequest.getHeader("User-Agent");
         String ipAddress = getClientIp(httpRequest);
-        sysTokenService.saveToken(user.getId(), token, refreshToken, deviceInfo, ipAddress);
+        // P19：注册流程优先用客户端 deviceId；缺省以 UA 派生稳定设备键
+        String deviceId = registerRequest.getDeviceId();
+        if (deviceId == null || deviceId.isBlank()) {
+            deviceId = "ua-" + Integer.toHexString((deviceInfo == null ? "" : deviceInfo).hashCode());
+        }
+        sysTokenService.saveToken(user.getId(), token, refreshToken, deviceInfo, ipAddress, deviceId);
 
         log.info("用户注册成功: {}", registerRequest.getUsername());
         return R.success("注册成功", buildLoginResponse(token, refreshToken, user));
@@ -149,12 +160,14 @@ public class AuthController {
         User user = userService.findByUsername(username);
 
         if (user != null && jwtUtil.validateToken(refreshToken, username)) {
+            // P19：刷新前反查原设备标识，新 token 保持同设备归属
+            String deviceId = sysTokenService.findDeviceIdByRefreshToken(refreshToken);
             // 使旧 refresh token 失效
             sysTokenService.invalidateRefreshToken(refreshToken);
             // 生成新 token 并保存
             String newToken = jwtUtil.generateToken(username);
             String newRefreshToken = jwtUtil.generateRefreshToken(username);
-            sysTokenService.saveToken(user.getId(), newToken, newRefreshToken, null, null);
+            sysTokenService.saveToken(user.getId(), newToken, newRefreshToken, null, null, deviceId);
 
             return R.success(RefreshTokenResponse.builder()
                     .token(newToken)

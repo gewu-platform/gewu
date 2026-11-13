@@ -19,4 +19,8 @@ public class RegisterRequest {
     @NotBlank(message = "密码不能为空")
     @Size(min = 6, message = "密码至少6个字符")
     private String password;
+
+    /** P19：设备标识（与登录一致，前端 localStorage UUID；缺省后端 UA 派生） */
+    @Size(max = 64, message = "设备标识过长（≤64 字符）")
+    private String deviceId;
 }

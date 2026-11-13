@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS sys_token (
     token              VARCHAR(500)    NOT NULL,
     refresh_token      VARCHAR(500)    DEFAULT NULL,
     device_info        VARCHAR(255)    DEFAULT NULL,
+    device_id          VARCHAR(64)     DEFAULT NULL,
     ip_address         VARCHAR(45)     DEFAULT NULL,
     status             SMALLINT        DEFAULT 1,
     expires_at         TIMESTAMP       DEFAULT NULL,
@@ -124,8 +125,10 @@ CREATE TABLE IF NOT EXISTS sys_token (
     update_time        TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
 );
 COMMENT ON TABLE sys_token IS '用户Token表 - 数据库维护token状态（替代Redis）';
+COMMENT ON COLUMN sys_token.device_id IS '设备标识 - 客户端 localStorage UUID（P19 多设备共活）；空=升级前旧记录';
 
 CREATE INDEX IF NOT EXISTS idx_sys_token_user_id ON sys_token(user_id);
+CREATE INDEX IF NOT EXISTS idx_sys_token_user_device ON sys_token(user_id, device_id);
 CREATE INDEX IF NOT EXISTS idx_sys_token_token ON sys_token(token);
 CREATE INDEX IF NOT EXISTS idx_sys_token_status ON sys_token(status);
 CREATE INDEX IF NOT EXISTS idx_sys_token_expires_at ON sys_token(expires_at);

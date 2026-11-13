@@ -42,6 +42,8 @@ public class SysToken implements Serializable {
      * 设备信息
      */
     private String deviceInfo;
+    /** P19：设备标识（客户端 localStorage UUID；空=升级前旧记录） */
+    private String deviceId;
 
     /**
      * IP 地址

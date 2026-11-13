@@ -45,28 +45,65 @@ public class SysTokenService {
     /**
      * 登录成功后保存 token 记录
      */
+    /**
+     * P19：按 refresh token 反查设备标识（刷新流程保持原设备归属）
+     */
+    public String findDeviceIdByRefreshToken(String refreshToken) {
+        try {
+            return sysTokenMapper.selectDeviceIdByRefreshToken(refreshToken);
+        } catch (Exception e) {
+            log.warn("[P19] 反查设备标识失败（忽略）：{}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** P19：单用户活跃设备数上限（超出淘汰最久未活跃设备） */
+    private static final int MAX_DEVICES = 5;
+
     public SysToken saveToken(Long userId, String token, String refreshToken,
-                              String deviceInfo, String ipAddress) {
-        // 使该用户旧 token 失效
-        // U4：先取旧有效 token 串并删除其 Redis 键（单活会话语义）
+                              String deviceInfo, String ipAddress, String deviceId) {
+        // P19 多设备共活：仅失效「同用户 + 同设备」的旧 token，不同设备各自保留
+        // U4：先取同设备旧有效 token 串并删除其 Redis 键
         try {
             List<SysToken> actives = sysTokenMapper.selectList(
                     new LambdaQueryWrapper<SysToken>()
                             .eq(SysToken::getUserId, userId)
+                            .eq(SysToken::getDeviceId, deviceId)
                             .eq(SysToken::getStatus, 1));
             for (SysToken old : actives) {
                 redisCacheService.del(TOKEN_KEY_PREFIX + sha256(old.getToken()));
             }
         } catch (Exception e) {
-            log.warn("[U4] 清理旧 token Redis 键失败（不影响登录）：userId={}, err={}", userId, e.getMessage());
+            log.warn("[P19] 清理同设备旧 token Redis 键失败（不影响登录）：userId={}, err={}", userId, e.getMessage());
         }
-        sysTokenMapper.invalidateByUserId(userId);
+        sysTokenMapper.invalidateByUserAndDevice(userId, deviceId);
+
+        // P19：设备数上限——活跃设备达到上限时淘汰最久未活跃者（含其 Redis 键）
+        try {
+            List<String> activeDevices = sysTokenMapper.selectActiveDeviceIdsByLeastRecent(userId);
+            while (activeDevices != null && activeDevices.size() >= MAX_DEVICES) {
+                String oldest = activeDevices.remove(0);
+                List<SysToken> evicting = sysTokenMapper.selectList(
+                        new LambdaQueryWrapper<SysToken>()
+                                .eq(SysToken::getUserId, userId)
+                                .eq(SysToken::getDeviceId, oldest)
+                                .eq(SysToken::getStatus, 1));
+                for (SysToken old : evicting) {
+                    redisCacheService.del(TOKEN_KEY_PREFIX + sha256(old.getToken()));
+                }
+                sysTokenMapper.invalidateByUserAndDevice(userId, oldest);
+                log.info("[P19] 设备数超上限，淘汰最久未活跃设备：userId={}, deviceId={}", userId, oldest);
+            }
+        } catch (Exception e) {
+            log.warn("[P19] 设备上限淘汰失败（不影响登录）：userId={}, err={}", userId, e.getMessage());
+        }
 
         SysToken sysToken = new SysToken();
         sysToken.setUserId(userId);
         sysToken.setToken(token);
         sysToken.setRefreshToken(refreshToken);
         sysToken.setDeviceInfo(deviceInfo);
+        sysToken.setDeviceId(deviceId);
         sysToken.setIpAddress(ipAddress);
         sysToken.setStatus(1);
         sysToken.setExpiresAt(jwtUtil.getExpirationDate(token));
