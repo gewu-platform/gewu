@@ -245,7 +245,7 @@ Skill 以「提示词包」形态注入 system prompt（只读，不执行其中
 |---|---|---|
 | GET | `/plugins` | 插件清单（内置样例首访自动灌入） |
 | POST | `/plugins` | 新增自定义条目（`code`/`name`/`transport`/`endpoint`/`toolAllow`） |
-| POST | `/plugins/{id}/install` | 一键安装（登记进 `mcp_server` 并桥接工具） |
+| POST | `/plugins/{id}/install` | 一键安装（登记 + 尽力连接；响应含 `connected` 标记） |
 | POST | `/plugins/{id}/uninstall` | 卸载（删除登记 + 断开桥接） |
 | DELETE | `/plugins/{id}` | 删除条目（内置不可删；已安装需先卸载） |
 
@@ -293,7 +293,7 @@ Skill 以「提示词包」形态注入 system prompt（只读，不执行其中
 
 | 层 | 触发条件 | 响应 |
 |---|---|---|
-| 限流 | 对话类接口超出令牌桶速率（`/api/chat*`、`/api/agent/chat*`） | `429` + `Retry-After: <秒>` + `{"code":429,"message":"请求过于频繁，请 N 秒后重试"}` |
+| 限流 | 对话类 POST 接口超出令牌桶速率（`/api/chat*`、`/api/agent/chat*`；GET 只读查询不限流） | `429` + `Retry-After: <秒>` + `{"code":429,"message":"请求过于频繁，请 N 秒后重试"}` |
 | 配额 | 用户当日 token 用量超上限 | `429` + `{"code":429,"message":"今日 token 配额已用完（used/limit）"}` |
 
 **分层语义**：限流管**速率**（先行拒绝，被限请求不消耗配额）；配额管**每日总量**。两者错误码同为 429，靠 message 区分。阈值见 [DEPLOY.md](./DEPLOY.md) `GEWU_RATELIMIT_*`。

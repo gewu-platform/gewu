@@ -4,7 +4,7 @@
 复用 V1.1.0 C3 的 MCP 客户端（HTTP SSE 传输）与工具桥接能力。
 
 插件仓库本身不重新实现连接逻辑：仓库只维护「清单」，
-**一键安装 = 把条目登记进 `mcp_server` 并桥接工具**（C3 原语）。
+**一键安装 = 登记 + 尽力连接**：先把条目登记进 `mcp_server`（enabled=false），随后尝试连接桥接；端点可达则 `connected=true` 并立即桥接，不可达（如内置占位端点）则保持登记态，待端点可达后在「设置 → MCP 服务器」中启用。
 
 ---
 
@@ -36,8 +36,7 @@ curl -X POST http://localhost:8081/api/settings/plugins/1/install \
   -H "Authorization: Bearer <token>"
 ```
 
-> 内置样例（filesystem / fetch / time / memory）的**端点是占位地址**，
-> 直接安装会连接失败。请先按第四节自建 server，再把端点改成真实地址。
+> 内置样例的端点为占位地址（需自建 server），安装会成功（登记态）但 `connected=false`；请先按第四节自建 server，再把端点改成真实地址后启用。真实端点安装即桥接（`connected=true`）。
 
 ### 2. 卸载与删除
 
@@ -108,7 +107,7 @@ app.listen(9001, () => console.log('MCP SSE on http://localhost:9001/sse'))
 启动后：
 
 1. 在插件仓库把该条目的端点改为 `http://localhost:9001/sse`
-2. 点「安装」→ 后端连接并桥接 `echo` 工具
+2. 点「安装」→ 后端登记并连接桥接 `echo` 工具（真实端点 `connected=true`）
 3. 在 Agent 定义中绑定该工具，对话即可调用
 
 ---

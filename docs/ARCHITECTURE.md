@@ -271,7 +271,7 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
 | 组件 | 职责 |
 |---|---|
 | `RateLimitService` | 进程内令牌桶（按流逝时间补充、容量封顶、CHM + 桶内同步、5 分钟回收空闲桶） |
-| `RateLimitFilter`（@Order 0，Security 之后） | 仅拦 `/api/chat*`、`/api/agent/chat*`；已认证按 username、未认证回落 IP |
+| `RateLimitFilter`（@Order 0，Security 之后） | 仅拦同前缀的 POST（GET 只读不限流，V2.7.0）：`/api/chat*`、`/api/agent/chat*`；已认证按 username、未认证回落 IP |
 
 **与配额分层**：限流管**速率**（先行拒绝，不占配额），配额管**每日总量**。
 
