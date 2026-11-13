@@ -253,10 +253,42 @@ public class SandboxRunner {
         String s = SandboxWorker.class.getProtectionDomain().getCodeSource().getLocation().toString();
         String lower = s.toLowerCase(Locale.ROOT);
         if (s.startsWith("file:") && !lower.endsWith(".jar") && !lower.endsWith(".zip")) {
-            // dev 模式：类在目录里，直接复用主进程 classpath
-            String cp = System.getProperty("java.class.path");
-            log.info("[Sandbox] 子进程 classpath=dev 模式（复用主进程 java.class.path）");
-            return cp;
+            // 目录形态的 CodeSource 有两种：dev 模式（target/classes）与解包部署
+            // （Dockerfile.jar → JarLauncher，CodeSource=/app/BOOT-INF/classes）。
+            // 解包部署下 java.class.path 不含 worker 类，直接复用会 ClassNotFoundException（P14）：
+            // 先校验 java.class.path 是否真的能找到 worker，不能则从 CodeSource 目录物化。
+            boolean workerOnJavaClassPath = false;
+            for (String seg : System.getProperty("java.class.path", "").split(java.io.File.pathSeparator)) {
+                if (Files.isRegularFile(Paths.get(seg, SandboxWorker.class.getName().replace('.', '/') + ".class"))) {
+                    workerOnJavaClassPath = true;
+                    break;
+                }
+            }
+            if (workerOnJavaClassPath) {
+                log.info("[Sandbox] 子进程 classpath=dev 模式（复用主进程 java.class.path）");
+                return System.getProperty("java.class.path");
+            }
+            // 解包部署：CodeSource 目录（含 worker class）+ 同级 lib 的 nashorn/asm jar
+            StringBuilder unpacked = new StringBuilder(s.substring("file:".length()).replaceAll("^/([A-Za-z]:/)", "$1"));
+            while (unpacked.toString().endsWith("/") || unpacked.toString().endsWith("\\")) {
+                unpacked.setLength(unpacked.length() - 1);
+            }
+            Path unpackedClasses = Paths.get(unpacked.toString());
+            Path unpackedLib = unpackedClasses.getParent() == null ? null
+                    : unpackedClasses.getParent().resolve("lib");
+            StringBuilder cpU = new StringBuilder(unpackedClasses.toString());
+            if (unpackedLib != null && Files.isDirectory(unpackedLib)) {
+                try (var listU = Files.list(unpackedLib)) {
+                    listU.filter(pp -> {
+                            String n = pp.getFileName().toString().toLowerCase(Locale.ROOT);
+                            return n.contains("nashorn") || n.contains("asm");
+                        }).sorted().forEach(pp -> cpU.append(java.io.File.pathSeparator).append(pp));
+                }
+            }
+            String cpUResult = cpU.toString();
+            childClasspath = cpUResult;
+            log.info("[Sandbox] 子进程 classpath=解包部署物化（CodeSource 目录 + nashorn/asm lib）");
+            return cpUResult;
         }
         // fat-jar / nested 模式：先从 CodeSource 提取真实 jar 路径再物化
         String jarPath = extractJarPath(s);
