@@ -112,6 +112,8 @@ public class ConversationService {
         String childId = createSession(parent.getMode(), parent.getModel(), parent.getSystemPrompt(), userId);
         ChatSession child = sessionService.getSession(childId);
         child.setParentSessionId(parentSessionId);
+        // V2.7.0 P23：子会话继承父会话分组（否则派生会话落入默认组，与父会话分离）
+        child.setGroupName(parent.getGroupName());
         if (StringUtils.hasText(summary)) {
             child.setContextSummary(summary);
         }
