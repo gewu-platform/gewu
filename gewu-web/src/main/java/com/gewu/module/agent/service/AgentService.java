@@ -232,7 +232,8 @@ public class AgentService implements SubAgentRunner {
                     // R2：子 Agent 亦可携带公共 Skill 指令段
                     skillLibrary.enrich(def.getSystemPrompt(),
                             def.getConfig() != null ? def.getConfig().getSkillIds() : null), task,
-                    agentRegistry.getToolSpecifications(workerAgentId),
+                    appendSkillInstructionsSpec(agentRegistry.getToolSpecifications(workerAgentId),
+                            def.getConfig() != null ? def.getConfig().getSkillIds() : null),
                     def.getConfig() != null && def.getConfig().getMaxIterations() != null
                             ? def.getConfig().getMaxIterations() : MAX_ITERATIONS,
                     workerAgentId, childSessionId, Boolean.FALSE, parentUserId);
@@ -253,6 +254,28 @@ public class AgentService implements SubAgentRunner {
      * 流式智能对话：事件链 iteration → thought → action → tool_result → done
      * 工具需审批时推送 approval_required 事件（含 toolCallId），审批通过后可重试
      */
+    /**
+     * R1/T1.3：渐进模式下把 skill_instructions 工具规格追加进工具清单。
+     * 全量模式（默认）不追加——指令已在 system prompt 中，无需取用通道。
+     */
+    private List<dev.langchain4j.agent.tool.ToolSpecification> appendSkillInstructionsSpec(
+            List<dev.langchain4j.agent.tool.ToolSpecification> specs, List<String> skillIds) {
+        if (skillIds == null || skillIds.isEmpty() || !skillLibrary.shouldUseProgressive(skillIds)) {
+            return specs;
+        }
+        if (!toolRegistry.has("skill_instructions")) {
+            return specs;
+        }
+        List<dev.langchain4j.agent.tool.ToolSpecification> skillSpecs =
+                toolRegistry.getSpecifications(java.util.List.of("skill_instructions"));
+        if (skillSpecs.isEmpty()) {
+            return specs;
+        }
+        List<dev.langchain4j.agent.tool.ToolSpecification> out = new java.util.ArrayList<>(specs);
+        out.addAll(skillSpecs);
+        return out;
+    }
+
     public Flux<AgentStreamResponse> chatStream(String userMessage, String systemPrompt,
                                                 String modelId, String agentId,
                                                 String sessionId, Long userId,
@@ -265,6 +288,9 @@ public class AgentService implements SubAgentRunner {
         // P8b 审批管控：Agent 级审批策略（null=继承工具级默认）
         Boolean agentRequireApproval = null;
 
+        List<String> agentSkillIds = null;
+        boolean progressiveSkills = false;
+        int skillInjectTokens = 0;
         if (agentId != null && !agentId.isBlank()) {
             AgentDefinition definition = agentRegistry.get(agentId);
             if (definition == null) {
@@ -274,9 +300,13 @@ public class AgentService implements SubAgentRunner {
             if (systemPromptFinal == null || systemPromptFinal.isBlank()) {
                 systemPromptFinal = definition.getSystemPrompt();
             }
-            // R2：公共 Skill 指令段注入（提示词包）
-            systemPromptFinal = skillLibrary.enrich(systemPromptFinal,
-                    definition.getConfig() != null ? definition.getConfig().getSkillIds() : null);
+            // R2：公共 Skill 指令段注入（提示词包）；R1/T1.3 自动模式决策（勾选数/注入量超阈值 → 渐进披露）
+            systemPromptFinal = skillLibrary.enrich(systemPromptFinal, agentSkillIds);
+            agentSkillIds = definition.getConfig() != null ? definition.getConfig().getSkillIds() : null;
+            // R1/T1.3：渐进模式下追加 skill_instructions 工具规格（模型按需取全文）
+            if (progressiveSkills) {
+                specs = appendSkillInstructionsSpec(specs, agentSkillIds);
+            }
             if (definition.getConfig() != null) {
                 agentRequireApproval = definition.getConfig().getRequireApproval();
                 // T5 定义级知识库绑定：chat 请求未指定文档时回退使用
@@ -314,6 +344,9 @@ public class AgentService implements SubAgentRunner {
         String finalSystemPrompt = systemPromptFinal;
         String finalAgentId = effectiveAgentId;
         final Boolean finalRequireApproval = agentRequireApproval;
+        final boolean finalProgressiveSkills = progressiveSkills;
+        final int finalSkillInjectTokens = skillInjectTokens;
+        final java.util.List<String> finalAgentSkillIds = agentSkillIds;
 
         return Flux.create(sink -> {
             List<ChatMessage> messages = new ArrayList<>();
@@ -358,6 +391,12 @@ public class AgentService implements SubAgentRunner {
             }
 
             // P8a 会话模式：注入 chat_message 历史（会话记忆），失败降级继续
+            // V2.8.0 R1/T1.4：技能加载模式可见性（时间线 thought 事件）
+            if (finalAgentSkillIds != null && !finalAgentSkillIds.isEmpty()) {
+                sink.next(AgentStreamResponse.thought(
+                        "技能加载模式：" + (finalProgressiveSkills ? "渐进披露（模型按需经 skill_instructions 取全文）" : "全量注入")
+                                + "，注入估算 " + finalSkillInjectTokens + " tokens", 1));
+            }
             boolean sessionMode = sessionId != null && !sessionId.isBlank();
             if (sessionMode) {
                 try {
