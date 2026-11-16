@@ -126,6 +126,19 @@ private final LlmCallLogMapper lastCallMapper;
         }
         log.info("[T3] compact 完成：sessionId={}, compressed={}, kept={}, summaryLen={}",
                 sessionId, toCompact.size(), keepRecent, summary == null ? 0 : summary.length());
+        // V2.8.0 R2/T2.3：压缩事件落时间线标记（role=system，构建上下文时被过滤，仅前端展示）
+        try {
+            com.gewu.module.chat.entity.ChatMessage marker = new com.gewu.module.chat.entity.ChatMessage();
+            marker.setSessionId(sessionId);
+            marker.setUserId(userId);
+            marker.setRole("system");
+            marker.setContent("[上下文已压缩] " + java.time.LocalDateTime.now().toLocalTime().withNano(0)
+                    + " · " + toCompact.size() + " 条消息并入摘要（摘要 " + summary.length() / 4 + " tokens）");
+            marker.setContentType("compact");
+            messageMapper.insert(marker);
+        } catch (Exception e) {
+            log.warn("[T2.3] 压缩标记消息落库失败（不影响压缩本身）：{}", e.getMessage());
+        }
         return summary;
     }
 
