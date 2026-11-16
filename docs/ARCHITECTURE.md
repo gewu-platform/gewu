@@ -252,6 +252,27 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
 
 ---
 
+## 前端设计体系与主题（V2.7.0）
+
+- **设计令牌**：`App.vue :root` 全量令牌表（品牌色阶 `--accent-50~900` + RGB 三元组 + 中性灰阶 + 边框三级 + 圆角/间距/阴影/按钮刻度），全仓硬编码色清扫后引用令牌；数据层常量收敛于 `src/design/palette.js`（COLORS/MODULE_COLORS/ICON_SIZES）。
+- **暗色模式**：`composables/useTheme.js` 三态主题（light/dark/system），写入 `<html data-theme>` 驱动 `[data-theme='dark']` 覆盖令牌表；antd v3 组件按类名 CSS 覆盖适配；切换入口为顶栏循环按钮，localStorage 持久化 + `prefers-color-scheme` 实时跟随。
+
+## 多设备登录（V2.7.0 P19）
+
+- `sys_token` 增 `device_id` 列（`device_info` 沿用）；`SysTokenService.saveToken` 仅失效**同用户同设备**旧 token——不同设备并行在线，上限 5 台超出淘汰最久未活跃。
+- 客户端稳定 `deviceId`（localStorage UUID，注册/登录/刷新三链路携带，UA 派生兜底）；改密码/主动登出仍为全端下线。
+- 迁移：`database/migrations/V4__device_id_for_sys_token.sql`。
+
+## Skill 目录监听与插件健康（V2.7.0 收尾 + V2.8.0 R3）
+
+- **Skill 目录监听**：`SkillLibraryService` WatchService 递归监听生效目录，SKILL.md 增删改防抖 1.5s 自动全量重扫；运行时切目录自动重启监听；`GET/POST /settings/skills/dir` 响应含 `hostDir`（`GEWU_SKILLS_DIR_HOST` 透传，仅展示）。
+- **插件健康状态机**：`PluginRegistryService` 内存态 PluginHealth（connected/unreachable），daemon 线程 60s 周期探活（复用 `McpServerService.test` 探测即断）；`GET /settings/plugins` 逐行组装 health；`POST /plugins/{id}/reconnect` 运行时重连（enable 桥接 + 工具刷新，审计留痕）。
+
+## 会话上下文压缩接入 Agent 链路（V2.8.0 R2）
+
+- `AgentService.chatStream` 会话模式进入时执行压缩钩子（`shouldAutoCompact` → `compact`，失败降级不阻断）；历史加载对齐 chat 链路 T3 模式：`context_summary` 置顶注入 + `compressed=1` 消息跳过。
+- 压缩提示词结构化四段交接模板（任务目标/已做决策/未完事项/关键工具结果）。
+
 ## 可观测（V2.2.0）
 
 | 组件 | 职责 |

@@ -226,28 +226,31 @@ gewu:
 
 ---
 
-## 技能库（/api/settings/skills，仅 ROLE_ADMIN，V2.0.0 + V2.0.1）
+## 技能库（/api/settings/skills，仅 ROLE_ADMIN，V2.0.0 + V2.0.1 + V2.7.0）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/skills` | Skill 列表（扫描目录下各子目录的 SKILL.md，解析 frontmatter 与指令段） |
-| GET | `/skills/dir` | 当前生效目录 + 是否可读 |
+| GET | `/skills/dir` | 当前生效目录 + 是否可读。响应含 `hostDir`（`GEWU_SKILLS_DIR_HOST` 透传的宿主机配置目录，仅展示用；未配置为 null） |
 | POST | `/skills/dir` | 运行时切换目录并立即重扫（body: `{"dir":"..."}`；仅内存态，重启回退配置值） |
 | POST | `/skills/rescan` | 手动重扫（返回 `count` 与 `dir`） |
+
+**目录自动重扫（V2.7.0）**：WatchService 递归监听生效目录，SKILL.md 增删改事件防抖 1.5s 后自动全量重扫；目录运行时切换自动重启监听。
 
 Skill 以「提示词包」形态注入 system prompt（只读，不执行其中指令）。目录配置见 [DEPLOY.md](./DEPLOY.md) `GEWU_SKILLS_DIR`。
 
 ---
 
-## 插件仓库（/api/settings/plugins，仅 ROLE_ADMIN，V2.0.0）
+## 插件仓库（/api/settings/plugins，仅 ROLE_ADMIN，V2.0.0 + V2.8.0）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/plugins` | 插件清单（内置样例首访自动灌入） |
+| GET | `/plugins` | 插件清单（内置样例首访自动灌入）。响应逐行含 `health`（`status`: connected/unreachable/unknown、`message`、`lastProbeAt`——V2.8.0 R3 健康状态机，60s 周期探活，list 触发异步探活） |
 | POST | `/plugins` | 新增自定义条目（`code`/`name`/`transport`/`endpoint`/`toolAllow`） |
 | POST | `/plugins/{id}/install` | 一键安装（登记 + 尽力连接；响应含 `connected` 标记） |
 | POST | `/plugins/{id}/uninstall` | 卸载（删除登记 + 断开桥接） |
 | DELETE | `/plugins/{id}` | 删除条目（内置不可删；已安装需先卸载） |
+| POST | `/plugins/{id}/reconnect` | 运行时重连（enable 桥接 + 工具刷新；失败不抛异常，返回 `ok=false` 与原因。V2.8.0 R3） |
 
 内置样例：`filesystem` / `fetch` / `time` / `memory`（端点为占位，需按 [PLUGIN.md](./PLUGIN.md) 改为真实地址）。
 
@@ -303,8 +306,10 @@ Skill 以「提示词包」形态注入 system prompt（只读，不执行其中
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/login` | 登录（返回 JWT） |
-| POST | `/register` | 注册 |
+| POST | `/login` | 登录（返回 JWT）。请求体可携带 `deviceId`（客户端生成的稳定标识，localStorage UUID）——同用户同设备再登录仅失效旧设备 token，不同设备并行在线；设备上限 5 台，超出淘汰最久未活跃 |
+| POST | `/register` | 注册（同样支持 `deviceId`） |
+
+> **多设备语义（V2.7.0 P19）**：token 按 `(user_id, device_id)` 归属；改密码/主动登出仍为全端下线。未携带 `deviceId` 时由 User-Agent 派生兜底。 |
 | POST | `/refresh` | 刷新令牌 |
 | GET | `/me` | 当前用户 |
 | POST | `/logout` | 登出（服务端令牌失效，替代 Redis 的 DB 校验） |
