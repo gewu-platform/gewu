@@ -40,7 +40,7 @@
 | 宿主机（`.env` 变量） | 容器内 | 用途 | 读写 |
 |---|---|---|---|
 | `./database/migrations` | `/app/database/migrations` | Flyway 增量迁移 | 只读 |
-| `GEWU_SKILLS_DIR_HOST` | `/app/skills` | 公共 Skill 库扫描目录 | 只读 |
+| `GEWU_SKILLS_DIR_HOST` | `/app/skills` | 公共 Skill 库扫描目录（同时透传进容器用于设置页展示「配置目录」） | 只读 |
 
 ### 0.5.2 边界故障排查成本盘点（B3.1）
 

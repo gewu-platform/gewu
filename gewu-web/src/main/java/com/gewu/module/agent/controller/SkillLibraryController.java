@@ -45,6 +45,7 @@ public class SkillLibraryController {
     public R<Map<String, Object>> getDir() {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("dir", skillLibrary.getSkillsDir());
+        data.put("hostDir", skillLibrary.getSkillsHostDir());
         data.put("readable", skillLibrary.isDirReadable());
         return R.success(data);
     }
@@ -62,6 +63,7 @@ public class SkillLibraryController {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("changed", ok);
         data.put("dir", skillLibrary.getSkillsDir());
+        data.put("hostDir", skillLibrary.getSkillsHostDir());
         data.put("readable", skillLibrary.isDirReadable());
         if (ok) {
             int count = skillLibrary.rescan();

@@ -102,6 +102,8 @@ services:
       VOLC_API_KEY: ${VOLC_API_KEY:-}
       # Skill 扫描目录：指向容器内挂载点（宿主机真实目录由 GEWU_SKILLS_DIR_HOST 挂载进来）
       GEWU_SKILLS_DIR: /app/skills
+      # 宿主机侧 skill 目录（仅透传用于前端展示「配置目录」，扫描实际走容器内挂载点 /app/skills）
+      GEWU_SKILLS_DIR_HOST: ${GEWU_SKILLS_DIR_HOST:-}
       JAVA_OPTS: ${GEWU_JAVA_OPTS:--Xms512m -Xmx1024m}
     volumes:
       # V2.5.0 M1.1.1：文件本体已改存 MinIO，原 uploads 挂载废弃

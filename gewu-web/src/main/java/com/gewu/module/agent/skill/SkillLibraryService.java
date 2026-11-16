@@ -15,6 +15,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.nio.file.WatchService;
+import java.nio.file.WatchKey;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.FileSystems;
+import java.nio.file.WatchEvent;
 import java.util.stream.Stream;
 
 /**
@@ -54,6 +63,22 @@ public class SkillLibraryService {
     @Value("${gewu.skills.dir:${GEWU_SKILLS_DIR:C:\\Users\\25333\\.agents\\skills}}")
     private String skillsDir;
 
+    /** 宿主机侧 skill 目录（容器部署时由 GEWU_SKILLS_DIR_HOST 透传，仅用于前端展示；可空） */
+    @Value("${gewu.skills.host-dir:${GEWU_SKILLS_DIR_HOST:}}")
+    private String skillsHostDir;
+
+    /** 文件监听（P18+：目录变化自动重扫）。key == 当前监听的目录；null == 未启动 */
+    private WatchService watchService;
+    private Path watchedDir;
+    /** 防抖调度器：文件事件密集时延迟合并为一次重扫 */
+    private final ScheduledExecutorService debouncePool = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "skill-dir-watcher");
+        t.setDaemon(true);
+        return t;
+    });
+    private ScheduledFuture<?> pendingRescan;
+    private static final long DEBOUNCE_MS = 1500;
+
     /**
      * R2/T2.2 运行时改目录：仅改内存态（不回写 application.yml，避免应用写坏自身配置）。
      *
@@ -72,6 +97,7 @@ public class SkillLibraryService {
         }
         this.skillsDir = p.toString();
         log.info("[Skill] 目录已切换（运行时）：{}", this.skillsDir);
+        startWatcher();
         return true;
     }
 
@@ -120,7 +146,101 @@ public class SkillLibraryService {
             log.warn("[Skill] 目录扫描失败：{}，原因={}", skillsDir, e.getMessage());
         }
         log.info("[Skill] 扫描完成：目录={}，解析成功={}", skillsDir, ok);
+        startWatcher();
         return ok;
+    }
+
+    /**
+     * 目录文件监听（懒启动、幂等）：CREATED/MODIFIED/DELETE 事件防抖 1.5s 后全量重扫。
+     * 目录切换时重启；监听失败仅告警不阻断主流程（手动重扫始终可用）。
+     */
+    @SuppressWarnings("unchecked")
+    private synchronized void startWatcher() {
+        Path root = Paths.get(skillsDir);
+        if (!Files.isDirectory(root)) {
+            return;
+        }
+        if (watchedDir != null && watchedDir.equals(root)) {
+            return; // 已在监听同一目录
+        }
+        stopWatcher();
+        try {
+            watchService = FileSystems.getDefault().newWatchService();
+            root.register(watchService,
+                StandardWatchEventKinds.ENTRY_CREATE,
+                StandardWatchEventKinds.ENTRY_MODIFY,
+                StandardWatchEventKinds.ENTRY_DELETE);
+            watchedDir = root;
+            debouncePool.submit(this::watchLoop);
+            log.info("[Skill] 目录监听已启动：{}", root);
+        } catch (Exception e) {
+            log.warn("[Skill] 目录监听启动失败（手动重扫仍可用）：{}，原因={}", root, e.getMessage());
+            watchService = null;
+            watchedDir = null;
+        }
+    }
+
+    /** 监听主循环：阻塞取事件 → 防抖 → 全量重扫（运行于 daemon 线程） */
+    private void watchLoop() {
+        WatchService ws = watchService;
+        if (ws == null) {
+            return;
+        }
+        while (ws == watchService && watchService != null) {
+            try {
+                WatchKey key = ws.take();
+                boolean relevant = false;
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    Object ctx = event.context();
+                    // 只关心 SKILL.md 与其父目录级变化（新建/删除 skill 目录）
+                    relevant = true;
+                    if (event.count() > 0 && ctx instanceof java.nio.file.Path && ((Path) ctx).getFileName().toString().startsWith(".")) {
+                        relevant = false; // 忽略隐藏临时文件
+                    }
+                }
+                if (relevant) {
+                    scheduleDebouncedRescan();
+                }
+                key.reset();
+            } catch (Exception e) {
+                if (watchService == null || ws != watchService) {
+                    return; // 监听已切换/关闭，正常退出
+                }
+                log.warn("[Skill] 目录监听异常，本轮忽略：{}", e.getMessage());
+            }
+        }
+    }
+
+    /** 防抖合并：1.5s 窗口内的密集事件只触发一次重扫 */
+    private synchronized void scheduleDebouncedRescan() {
+        if (pendingRescan != null && !pendingRescan.isDone()) {
+            pendingRescan.cancel(false);
+        }
+        pendingRescan = debouncePool.schedule(() -> {
+            try {
+                int n = rescan();
+                log.info("[Skill] 检测到目录变化，自动重扫完成：count={}", n);
+            } catch (Exception e) {
+                log.warn("[Skill] 自动重扫失败：{}", e.getMessage());
+            }
+        }, DEBOUNCE_MS, TimeUnit.MILLISECONDS);
+    }
+
+    /** 停止旧监听（目录切换/服务关闭时） */
+    private synchronized void stopWatcher() {
+        if (watchService != null) {
+            try {
+                watchService.close();
+            } catch (IOException ignored) {
+            }
+            watchService = null;
+            watchedDir = null;
+        }
+    }
+
+    /** 当前生效目录对应的宿主机路径（容器部署透传，仅展示用；未配置返回 null） */
+    public String getSkillsHostDir() {
+        return (skillsHostDir == null || skillsHostDir.isBlank()) ? null : skillsHostDir;
     }
 
     /** 列表（按 id 排序） */
