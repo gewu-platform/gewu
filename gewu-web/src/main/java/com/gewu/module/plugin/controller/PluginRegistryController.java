@@ -38,9 +38,21 @@ public class PluginRegistryController {
     private final com.gewu.module.audit.service.AuditService auditService;
 
     /** 插件清单（内置样例自动灌入） */
+    /** R3/T3.1：清单带健康状态（异步触发探活；首次返回 unknown，探活轮次后刷新可见） */
     @GetMapping
-    public R<List<PluginRegistry>> list() {
-        return R.success(pluginRegistryService.list());
+    public R<List<Map<String, Object>>> list() {
+        pluginRegistryService.ensureHealthProbeAsync();
+        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        List<Map<String, Object>> out = new java.util.ArrayList<>();
+        for (PluginRegistry row : pluginRegistryService.list()) {
+            Map<String, Object> m = om.convertValue(row, Map.class);
+            PluginRegistryService.PluginHealth h = pluginRegistryService.getHealth(row.getId());
+            m.put("health", h == null
+                    ? Map.of("status", "unknown", "message", "探活中，稍后刷新可见")
+                    : h);
+            out.add(m);
+        }
+        return R.success(out);
     }
 
     /** 新增自定义插件条目 */
@@ -67,6 +79,13 @@ public class PluginRegistryController {
         // V2.4.0 C2：审计——插件卸载
         auditService.record(request, "plugin.uninstall", "plugin_registry", String.valueOf(id), null, true);
         return R.success(pluginRegistryService.uninstall(id));
+    }
+
+    /** R3/T3.2：运行时重连（enable 桥接 + 工具刷新） */
+    @PostMapping("/{id}/reconnect")
+    public R<Map<String, Object>> reconnect(@PathVariable Long id, jakarta.servlet.http.HttpServletRequest request) {
+        auditService.record(request, "plugin.reconnect", "plugin_registry", String.valueOf(id), null, true);
+        return R.success(pluginRegistryService.reconnect(id));
     }
 
     /** 删除条目（内置不可删；已安装需先卸载） */

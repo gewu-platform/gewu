@@ -44,6 +44,7 @@ public class PluginRegistryService {
     /** 列表（内置样例缺失时自动灌入） */
     public List<PluginRegistry> list() {
         seedBuiltin();
+        ensureHealthProbeAsync();
         return mapper.selectList(new LambdaQueryWrapper<PluginRegistry>()
                 .orderByAsc(PluginRegistry::getBuiltin)
                 .orderByAsc(PluginRegistry::getCode));
@@ -130,6 +131,147 @@ public class PluginRegistryService {
         mapper.updateById(row);
         log.info("[Plugin] 卸载完成：code={}, 删除 mcp 登记={}", row.getCode(), target != null);
         return Map.of("code", row.getCode(), "removed", target != null);
+    }
+
+    /**
+     * V2.8.0 R3/T3.1：插件桥接健康状态（运行时内存态，探活周期重建；不落库）。
+     * 状态语义：connected=桥接正常 / unreachable=端点不可达或未桥接。
+     */
+    public static class PluginHealth {
+        private String status;
+        private String message;
+        private java.time.LocalDateTime lastProbeAt;
+
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+        public java.time.LocalDateTime getLastProbeAt() { return lastProbeAt; }
+        public void setLastProbeAt(java.time.LocalDateTime t) { this.lastProbeAt = t; }
+    }
+
+    /** 健康状态缓存：插件 id → 最近探活结果 */
+    private final java.util.Map<Long, PluginHealth> healthMap = new java.util.concurrent.ConcurrentHashMap<>();
+    private java.lang.Thread healthProbeThread;
+    private static final long HEALTH_PROBE_INTERVAL_MS = 60_000;
+
+    /** 异步探活入口（list 触发，fire-and-forget；daemon 线程 60s 周期全量探活） */
+    public void ensureHealthProbeAsync() {
+        if (healthProbeThread != null && healthProbeThread.isAlive()) {
+            return;
+        }
+        healthProbeThread = new java.lang.Thread(() -> {
+            try {
+                java.lang.Thread.sleep(2000); // 等首次 list 响应先返回
+            } catch (InterruptedException e) {
+                return;
+            }
+            while (true) {
+                try {
+                    probeAll();
+                } catch (Exception e) {
+                    log.warn("[Plugin] 健康探活轮次失败（忽略）：{}", e.getMessage());
+                }
+                try {
+                    java.lang.Thread.sleep(HEALTH_PROBE_INTERVAL_MS);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+        }, "plugin-health-probe");
+        healthProbeThread.setDaemon(true);
+        healthProbeThread.start();
+    }
+
+    /** 全量探活：installed 插件逐一探测 */
+    public void probeAll() {
+        for (PluginRegistry row : mapper.selectList(null)) {
+            if (Boolean.TRUE.equals(row.getInstalled())) {
+                try {
+                    probeHealth(row.getId());
+                } catch (Exception one) {
+                    log.warn("[Plugin] 单插件探活失败（忽略）：id={}, {}", row.getId(), one.getMessage());
+                }
+            }
+        }
+    }
+
+    /** 单插件探活：mcp 登记存在 → test 端点连通（探测即断）；缺失 = 未桥接 */
+    public PluginHealth probeHealth(Long id) {
+        PluginRegistry row = mapper.selectById(id);
+        if (row == null || !Boolean.TRUE.equals(row.getInstalled())) {
+            return null;
+        }
+        PluginHealth h = new PluginHealth();
+        h.setLastProbeAt(java.time.LocalDateTime.now());
+        McpServer target = mcpServerService.listAll().stream()
+                .filter(srv -> srv.getName().equals(row.getInstalledName()))
+                .findFirst().orElse(null);
+        if (target == null) {
+            h.setStatus("unreachable");
+            h.setMessage("未桥接：端点从未连通（mcp 登记缺失），可尝试重连或重新安装");
+            healthMap.put(id, h);
+            return h;
+        }
+        Map<String, Object> test = mcpServerService.test(target.getId());
+        if (Boolean.TRUE.equals(test.get("ok"))) {
+            h.setStatus("connected");
+        } else {
+            h.setStatus("unreachable");
+        }
+        h.setMessage(String.valueOf(test.get("message")));
+        healthMap.put(id, h);
+        return h;
+    }
+
+    /** 读取某插件最近健康状态（无探活记录返回 null） */
+    public PluginHealth getHealth(Long id) {
+        return healthMap.get(id);
+    }
+
+    /**
+     * V2.8.0 R3/T3.2：运行时重连——对已登记 mcp_server 执行 enable（连接 + 桥接 + 工具刷新）。
+     * 失败不抛异常，返回 ok=false 与原因（前端 toast 呈现）。
+     */
+    public Map<String, Object> reconnect(Long id) {
+        PluginRegistry row = requireRow(id);
+        if (!Boolean.TRUE.equals(row.getInstalled())) {
+            throw new BizException(400, "插件未安装：" + row.getCode());
+        }
+        McpServer target = mcpServerService.listAll().stream()
+                .filter(srv -> srv.getName().equals(row.getInstalledName()))
+                .findFirst().orElse(null);
+        Map<String, Object> out = new java.util.HashMap<>();
+        out.put("code", row.getCode());
+        if (target == null) {
+            PluginHealth h = new PluginHealth();
+            h.setStatus("unreachable");
+            h.setLastProbeAt(java.time.LocalDateTime.now());
+            h.setMessage("mcp 登记缺失，请卸载后重新安装");
+            healthMap.put(id, h);
+            out.put("ok", false);
+            out.put("message", h.getMessage());
+            return out;
+        }
+        try {
+            mcpServerService.enable(target.getId());
+            PluginHealth h = new PluginHealth();
+            h.setStatus("connected");
+            h.setLastProbeAt(java.time.LocalDateTime.now());
+            h.setMessage("重连成功，桥接已启用");
+            healthMap.put(id, h);
+            out.put("ok", true);
+            out.put("message", "重连成功");
+        } catch (Exception e) {
+            PluginHealth h = new PluginHealth();
+            h.setStatus("unreachable");
+            h.setLastProbeAt(java.time.LocalDateTime.now());
+            h.setMessage("重连失败：" + e.getMessage());
+            healthMap.put(id, h);
+            out.put("ok", false);
+            out.put("message", "重连失败：" + e.getMessage());
+        }
+        return out;
     }
 
     /** 新增自定义插件条目（非内置） */
