@@ -9,6 +9,7 @@ import com.gewu.module.agent.definition.AgentDefinition;
 import com.gewu.module.chat.service.ChatMessageService;
 import com.gewu.module.chat.service.ChatSessionService;
 import com.gewu.module.chat.service.TokenUsageService;
+import com.gewu.module.chat.service.ContextCompactService;
 import com.gewu.module.knowledge.dto.KnowledgeSearchResult;
 import com.gewu.module.knowledge.service.KnowledgeBaseService;
 import com.gewu.module.agent.dto.AgentStreamResponse;
@@ -72,6 +73,7 @@ public class AgentService implements SubAgentRunner {
     private final TokenUsageService tokenUsageService;
     // P8b 编排层：RAG 检索注入（盘活 P3/P4 知识库）
     private final KnowledgeBaseService knowledgeBaseService;
+    private final ContextCompactService contextCompactService;
     /** 审批协调器（挂起等待 / 决策唤醒 / 终结落库）；依赖 executionService，在 init() 中构造 */
     private AgentApprovalWaiter approvalWaiter;
 
@@ -291,6 +293,20 @@ public class AgentService implements SubAgentRunner {
             effectiveAgentId = null;
         }
 
+        // V2.8.0 R2/T2.0：Agent 编排链路自动压缩钩子（复用 ChatController T3.4 模式，失败降级不阻断）
+        if (sessionId != null && !sessionId.isBlank()) {
+            try {
+                if (contextCompactService.shouldAutoCompact(sessionId, userId)) {
+                    java.util.Map<String, Object> conf = contextCompactService.loadUserSettings(userId);
+                    int keep = ((Number) conf.get("keepRecent")).intValue();
+                    log.info("[R2/T2.0] Agent 链路自动压缩触发：sessionId={}, keepRecent={}", sessionId, keep);
+                    contextCompactService.compact(sessionId, userId, keep);
+                }
+            } catch (Exception e) {
+                log.warn("[R2/T2.0] Agent 链路自动压缩失败（不阻断）：sessionId={}, err={}", sessionId, e.getMessage());
+            }
+        }
+
         // T5 参数回退后再捕获为 final（lambda 内引用要求 effectively final）
         final List<Long> finalKnowledgeIds = knowledgeDocumentIds;
         final Integer finalRagTopK = ragTopK;
@@ -345,8 +361,17 @@ public class AgentService implements SubAgentRunner {
             boolean sessionMode = sessionId != null && !sessionId.isBlank();
             if (sessionMode) {
                 try {
+                    // V2.8.0 R2/T2.0：压缩摘要置顶 + 跳过 compressed 消息（对齐 ConversationService T3 模式）
+                    com.gewu.module.chat.entity.ChatSession sessionEntity = chatSessionService.getSession(sessionId);
+                    if (sessionEntity != null && sessionEntity.getContextSummary() != null
+                            && !sessionEntity.getContextSummary().isBlank()) {
+                        messages.add(SystemMessage.from("【早前对话摘要】\n" + sessionEntity.getContextSummary()));
+                    }
                     for (com.gewu.module.chat.entity.ChatMessage entity
                             : chatMessageService.getMessagesBySessionId(sessionId)) {
+                        if (entity.getCompressed() != null && entity.getCompressed() == 1) {
+                            continue; // V2.8.0 R2/T2.0：已并入摘要的消息不进 LLM 上下文
+                        }
                         if ("user".equals(entity.getRole())) {
                             messages.add(UserMessage.from(entity.getContent()));
                         } else if ("assistant".equals(entity.getRole())) {
