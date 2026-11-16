@@ -58,8 +58,8 @@ public class ToolApprovalGateway {
     /** 需要审批的工具名（精确匹配） */
     private static final List<String> APPROVAL_REQUIRED_TOOLS = List.of("search");
 
-    /** 自动放行的工具名（只读） */
-    private static final List<String> AUTO_APPROVED_TOOLS = List.of("calculator", "datetime", "timezone", "agent_dispatch");
+    /** 自动放行的工具名（只读；agent_dispatch/_batch 为 master 专属派发工具，allowedWorkers 约束 + worker 免审批，语义与单发一致） */
+    private static final List<String> AUTO_APPROVED_TOOLS = List.of("calculator", "datetime", "timezone", "agent_dispatch", "agent_dispatch_batch");
 
     /** 待审批队列：toolCallId → ApprovalRequest */
     private final Map<String, ApprovalRequest> pendingApprovals = new ConcurrentHashMap<>();

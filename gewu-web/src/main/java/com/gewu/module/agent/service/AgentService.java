@@ -303,6 +303,8 @@ public class AgentService implements SubAgentRunner {
             // R2：公共 Skill 指令段注入（提示词包）；R1/T1.3 自动模式决策（勾选数/注入量超阈值 → 渐进披露）
             systemPromptFinal = skillLibrary.enrich(systemPromptFinal, agentSkillIds);
             agentSkillIds = definition.getConfig() != null ? definition.getConfig().getSkillIds() : null;
+            progressiveSkills = skillLibrary.shouldUseProgressive(agentSkillIds);
+            skillInjectTokens = skillLibrary.estimateInjectTokens(agentSkillIds);
             // R1/T1.3：渐进模式下追加 skill_instructions 工具规格（模型按需取全文）
             if (progressiveSkills) {
                 specs = appendSkillInstructionsSpec(specs, agentSkillIds);
