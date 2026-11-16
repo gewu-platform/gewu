@@ -43,6 +43,8 @@ public class PluginRegistryController {
     public R<List<Map<String, Object>>> list() {
         pluginRegistryService.ensureHealthProbeAsync();
         com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        om.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        om.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         List<Map<String, Object>> out = new java.util.ArrayList<>();
         for (PluginRegistry row : pluginRegistryService.list()) {
             Map<String, Object> m = om.convertValue(row, Map.class);
