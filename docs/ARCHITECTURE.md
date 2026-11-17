@@ -145,6 +145,12 @@ AgentStreamResponse（十类 SSE 事件，向后兼容契约）
   → SSE 十类事件流 → 前端渲染
 ```
 
+### 会话级联删除（V2.8.1）
+
+`ConversationService.deleteSession` 删除父会话时**级联删除其全部派生子会话**（先删子消息、再删子会话行；一层树子会话无子级，单层遍历即可）——修复删除父会话后子会话依然存活的数据层问题。
+
+**新建会话 pending 交互（V2.8.1 ④，前端）**：点击「新建会话」仅置本地 pending 态（不调创建接口、不入库、不出现在会话列表）；首条消息发送时真实创建全新会话（fresh create，不复用已有活跃会话）并设置默认名 New Session；切换到其他会话时 pending 静默丢弃（无 DB 副作用）。
+
 ## 数据模型（PostgreSQL + pgvector，16 表）
 
 | 表 | 说明 |

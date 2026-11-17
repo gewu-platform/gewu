@@ -44,7 +44,7 @@
 | GET | `/session/{id}` | 会话详情 |
 | GET | `/session/{id}/messages` | 历史消息 |
 | GET | `/session/{id}/stats` | 会话 token 统计 |
-| DELETE | `/session/{id}` | 删除会话 |
+| DELETE | `/session/{id}` | 删除会话（**级联删除其全部派生子会话与子消息**，V2.8.1；子会话无子级，单层遍历） |
 | POST | `/session/{id}/clear` | 清空历史 |
 | POST | `/message` | 同步对话 |
 | POST | `/upload` | 上传对话附件（multipart: file，≤10MB）。按扩展名分流：图片（jpg/jpeg/png/webp/gif）→ 返回预签名 URL；文档（pdf/docx/txt/md）→ 返回 { key, url, name } |
