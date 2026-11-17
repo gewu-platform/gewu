@@ -590,6 +590,14 @@ public class ConversationService {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND.getCode(), "会话不存在：" + sessionId);
         }
 
+        // V2.8.1 fix：级联删除子会话（一层树：子会话无子级；父删则子不存活——修复删除父会话后子会话依然存活的问题）
+        java.util.List<ChatSession> children = sessionService.getSessionsByParentId(sessionId);
+        for (ChatSession child : children) {
+            messageService.deleteBySessionId(child.getId());
+            sessionService.deleteSession(child.getId());
+            log.info("级联删除子会话：childSessionId={}（父 {}）", child.getId(), sessionId);
+        }
+
         messageService.deleteBySessionId(sessionId);
         sessionService.deleteSession(sessionId);
 

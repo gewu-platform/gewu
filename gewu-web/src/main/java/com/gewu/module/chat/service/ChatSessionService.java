@@ -104,6 +104,15 @@ public class ChatSessionService extends ServiceImpl<ChatSessionMapper, ChatSessi
     }
 
     /**
+     * V2.8.1 fix：按父会话查询未删除的子会话（派生会话级联删除用）
+     */
+    public List<ChatSession> getSessionsByParentId(String parentSessionId) {
+        return baseMapper.selectList(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getParentSessionId, parentSessionId)
+                .eq(ChatSession::getIsDeleted, 0));
+    }
+
+    /**
      * 分页获取会话（未删除的）
      */
     public List<ChatSession> getSessionsByPage(Integer page, Integer size) {
